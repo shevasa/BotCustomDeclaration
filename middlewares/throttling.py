@@ -41,9 +41,13 @@ class ThrottlingMiddleware(BaseMiddleware):
         else:
             key = f"{self.prefix}_message"
         delta = throttled.rate - throttled.delta
-        if throttled.exceeded_count <= 2:
-            await message.reply('Too many requests! ')
+        # if throttled.exceeded_count <= 7:
+        #     await message.reply('Too many requests! ')
         await asyncio.sleep(delta)
         thr = await dispatcher.check_key(key)
-        if thr.exceeded_count == throttled.exceeded_count:
-            await message.reply('Unlocked.')
+        # if thr.exceeded_count == throttled.exceeded_count:
+        #     await message.reply('Unlocked.')
+
+    @staticmethod
+    async def on_pre_process_callback_query(call: types.CallbackQuery, data: dict):
+        await call.answer()
