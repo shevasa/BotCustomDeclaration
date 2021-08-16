@@ -8,7 +8,8 @@ from aiogram.types import ContentType, MediaGroup
 from typing import List
 
 from keyboards.inline import get_choose_task_type_keyboard, choose_task_type_callback, get_task_creation_keyboard, \
-    task_creation_callback, ready_keyboard, edit_document_keyboard
+    task_creation_callback, ready_keyboard, edit_document_keyboard, edit_callback, task_creation_else_callback, \
+    comment__inline_keyboard, comment_markup_callback
 from loader import dp, db, bot
 from states.task_creation_states import Task_creation
 from utils.misc import create_state_dict
@@ -29,6 +30,7 @@ async def start_to_create_task(call: types.CallbackQuery, state: FSMContext, cal
 
     await state.update_data(data=create_state_dict(all_needed_documents))
     await state.update_data(task_type_name=task_type_name)
+    await state.update_data(comment='')
 
     await call.message.answer(f"Вы выбрали тип услуги: {task_type_name}{task_type_emoji}\n\n"
                               "📲Воспользуйтесь кнопками, чтобы поочередно отправить все нужные документы",
@@ -36,8 +38,8 @@ async def start_to_create_task(call: types.CallbackQuery, state: FSMContext, cal
 
     await Task_creation.create_process.set()
 
-    await state.update_data(data=create_state_dict(all_needed_documents))
-    await state.update_data(task_type_name=task_type_name)
+    # await state.update_data(data=create_state_dict(all_needed_documents))
+    # await state.update_data(task_type_name=task_type_name)
 
 
 @dp.callback_query_handler(task_creation_callback.filter(action='add'), state=Task_creation.create_process)
@@ -55,7 +57,8 @@ async def ask_for_document(call: types.CallbackQuery, state: FSMContext, callbac
 
 @dp.callback_query_handler(task_creation_callback.filter(action='edit'), state=Task_creation.create_process)
 async def ask_for_document(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
-    media_group = MediaGroup()
+    media_group_photo = MediaGroup()
+    media_group_document = MediaGroup()
 
     document_type_id = int(callback_data.get('document_type_id'))
     document_to_edit = await db.get_document_type_name_by_id(document_type_id)
@@ -64,17 +67,24 @@ async def ask_for_document(call: types.CallbackQuery, state: FSMContext, callbac
     all_files_for_this_document = state_data.get(document_to_edit)
 
     for file_dict in all_files_for_this_document:
-        media_group.attach(file_dict)
+        if file_dict['type'] == 'photo':
+            media_group_photo.attach(file_dict)
+        if file_dict['type'] == 'document':
+            media_group_document.attach(file_dict)
 
-    await call.message.answer_media_group(media=media_group)
-    await call.message.answer(f"Это фото вашего документа: {document_to_edit}\n\n",
+    if media_group_document.media:
+        await call.message.answer_media_group(media=media_group_document)
+    if media_group_photo.media:
+        await call.message.answer_media_group(media=media_group_photo)
+
+    await call.message.answer(f"Это фото вашего документа: <b>{document_to_edit}</b>\n\n",
                               reply_markup=edit_document_keyboard)
 
     await Task_creation.edit_files.set()
     await state.update_data(now_editing=document_to_edit)
 
 
-@dp.callback_query_handler(state=Task_creation.edit_files)
+@dp.callback_query_handler(edit_callback.filter(action='send_new'), state=Task_creation.edit_files)
 async def catch_new_files(call: types.CallbackQuery, state: FSMContext):
     state_data = await state.get_data()
     document_to_edit = state_data.get('now_editing')
@@ -126,11 +136,47 @@ async def catch_document(message: types.Message, state: FSMContext):
                          reply_markup=ready_keyboard)
 
 
+@dp.callback_query_handler(task_creation_else_callback.filter(action="edit_comment"), state=Task_creation.create_process)
+@dp.callback_query_handler(comment_markup_callback.filter(action='edit'), state=Task_creation.catch_comment)
+@dp.callback_query_handler(task_creation_else_callback.filter(action="add_comment"), state=Task_creation.create_process)
+async def ask_for_comment(call: types.CallbackQuery, state: FSMContext):
+    state_data = await state.get_data()
+    if not state_data.get('comment'):
+        text = '🖊Отправьте комментарий, который хотите добавить к своей заявке📃'
+    else:
+        text = '🖊Отправьте новый комментарий, который хотите добавить к своей заявке📃'
+    await call.message.answer(text=text)
+    await Task_creation.catch_comment.set()
+
+
+@dp.message_handler(state=Task_creation.catch_comment)
+async def catch_comment(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['comment'] = message.text
+
+    await message.answer(f"Ваш комментарий: <b>{message.text}</b>\n\n"
+                         f"Добавить его к вашей заявке?",
+                         reply_markup=comment__inline_keyboard)
+
+
+@dp.callback_query_handler(comment_markup_callback.filter(action='cancel'), state=Task_creation.catch_comment)
+@dp.callback_query_handler(comment_markup_callback.filter(action='add'), state=Task_creation.catch_comment)
+@dp.callback_query_handler(edit_callback.filter(action='cancel_editing'), state=Task_creation.edit_files)
 @dp.callback_query_handler(state=Task_creation.catch_photo_file)
-async def submit(call: types.CallbackQuery, state: FSMContext):
+async def submit(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
+    if callback_data.get('action') == 'cancel':
+        await state.update_data(comment='')
     state_data = await state.get_data()
     logging.info(f"{state_data}")
-    await call.message.answer(f"Тип услуги: {state_data.get('task_type_name')}\n\n"
-                              f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!",
+    if state_data.get('comment'):
+        text = f"<b>Ваша заявка</b>\n\n" \
+               f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n" \
+               f"Ваш комментарий: <b>{state_data['comment']}</b>\n\n" \
+               f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
+    else:
+        text = f"<b>Ваша заявка</b>\n\n" \
+               f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n" \
+               f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
+    await call.message.answer(text,
                               reply_markup=await get_task_creation_keyboard(state_data=state_data))
     await Task_creation.create_process.set()

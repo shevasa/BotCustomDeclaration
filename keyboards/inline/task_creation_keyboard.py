@@ -7,7 +7,7 @@ from typing import Union
 from loader import db
 
 task_creation_callback = CallbackData("task", 'action', 'document_type_id')
-
+task_creation_else_callback = CallbackData("task_else", 'action')
 
 async def get_task_creation_keyboard(state_data: Union[None, dict]):
     keyboard = InlineKeyboardMarkup()
@@ -30,5 +30,20 @@ async def get_task_creation_keyboard(state_data: Union[None, dict]):
         button = InlineKeyboardButton(text=button_text,
                                       callback_data=callback_data)
         keyboard.add(button)
+
+    if not state_data['comment']:
+        comment_button_text = "✍🏼Написать комментарий"
+        action = "add_comment"
+    else:
+        comment_button_text = "↩️Изменить комментарий"
+        action = 'edit_comment'
+
+    comment_button = InlineKeyboardButton(text=comment_button_text,
+                                          callback_data=task_creation_else_callback.new(action=action))
+    send_button = InlineKeyboardButton(text='📤Отправить заявку',
+                                       callback_data=task_creation_else_callback.new(action='finish'))
+
+    keyboard.add(comment_button)
+    keyboard.add(send_button)
 
     return keyboard
