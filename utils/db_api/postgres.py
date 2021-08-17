@@ -71,10 +71,49 @@ class Database:
                         """
         return await self.execute(sql, task_name, fetch=True)
 
-    async def get_task_type_emoji_by_task_type_name(self, task_type_name):
-        sql = """select task_type_emoji from task_types where task_type_name=$1"""
-        return await self.execute(sql, task_type_name, fetchval=True)
+    async def get_task_type_id_and_emoji_by_task_type_name(self, task_type_name):
+        sql = """select task_type_id, task_type_emoji from task_types where task_type_name=$1"""
+        return await self.execute(sql, task_type_name, fetchrow=True)
+
+    async def get_task_type_name_by_task_id(self, task_id):
+        sql = """select tt.task_type_name from tasks t
+        left join task_types tt on tt.task_type_id=t.task_type_id
+        where t.task_id=$1"""
+        return await self.execute(sql, task_id, fetchval=True)
 
     async def get_document_type_name_by_id(self, document_type_id):
         sql = "select document_type_name from document_types where document_type_id=$1"
         return await self.execute(sql, document_type_id, fetchval=True)
+
+    async def create_new_task(self, task_type_id: int, user_tg_id: int, comment: str, worker_tg_id=329760591,
+                              status_id=1):
+        sql = """insert into tasks (task_type_id, user_tg_id, worker_tg_id, status_id, comment) 
+        values ($1, $2, $3, $4, $5) returning *"""
+        return await self.execute(sql, task_type_id, user_tg_id, worker_tg_id, status_id, comment, fetchrow=True)
+
+    async def save_new_document_to_db(self, document_file_id: str, task_id: int, document_type_id: int,
+                                      document_content_type: str):
+        sql = """insert into documents(document_file_id, task_id, document_type_id, document_content_type) values
+        ($1, $2, $3, $4)"""
+        return await self.execute(sql, document_file_id, task_id, document_type_id, document_content_type, execute=True)
+
+    async def get_task_by_task_id(self, task_id):
+        sql = """select * from tasks where task_id=$1"""
+        return await self.execute(sql, task_id, fetchrow=True)
+
+    async def get_all_task_files(self, task_id, document_type_id):
+        sql = """select d.document_file_id as media, d.document_content_type as type from documents d
+                where d.task_id = $1 and d.document_type_id = $2;"""
+        return await self.execute(sql, task_id, document_type_id, fetch=True)
+
+    async def get_all_tasks_by_user_tg_id(self, user_tg_id):
+        sql = """select tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id from tasks t
+    left join task_types tp on tp.task_type_id=t.task_type_id
+    left join (select task_id, count(document_file_id) as num_of_files from documents group by task_id) a on a.task_id=t.task_id
+    left join task_status ts on ts.task_status_id=t.status_id 
+    where t.user_tg_id=$1"""
+        return await self.execute(sql, user_tg_id, fetch=True)
+
+    async def delete_task_files_by_task_id(self, task_id):
+        sql = """delete from documents where task_id=$1"""
+        return await self.execute(sql, task_id, execute=True)

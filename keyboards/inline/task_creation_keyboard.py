@@ -9,6 +9,7 @@ from loader import db
 task_creation_callback = CallbackData("task", 'action', 'document_type_id')
 task_creation_else_callback = CallbackData("task_else", 'action')
 
+
 async def get_task_creation_keyboard(state_data: Union[None, dict]):
     keyboard = InlineKeyboardMarkup()
 

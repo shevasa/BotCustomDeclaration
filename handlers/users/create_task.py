@@ -1,18 +1,19 @@
-import asyncio
 import logging
-from io import BytesIO
+from typing import List, Union
 
 from aiogram import types
 from aiogram.dispatcher import FSMContext
-from aiogram.types import ContentType, MediaGroup
-from typing import List
+from aiogram.types import ContentType, MediaGroup, InlineKeyboardMarkup, InlineKeyboardButton
 
+from keyboards.default import start_user_keyboard
 from keyboards.inline import get_choose_task_type_keyboard, choose_task_type_callback, get_task_creation_keyboard, \
     task_creation_callback, ready_keyboard, edit_document_keyboard, edit_callback, task_creation_else_callback, \
-    comment__inline_keyboard, comment_markup_callback
+    comment__inline_keyboard, comment_markup_callback, get_new_task_keyboard
 from loader import dp, db, bot
 from states.task_creation_states import Task_creation
+from utils.edit_my_task_in_db import edit_my_task
 from utils.misc import create_state_dict
+from utils.save_new_task_to_db import save_new_task_to_db
 
 
 @dp.message_handler(text="Оформить заявку✍🏼")
@@ -24,7 +25,8 @@ async def choose_task_type(message: types.Message, state: FSMContext):
 @dp.callback_query_handler(choose_task_type_callback.filter())
 async def start_to_create_task(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
     task_type_name = callback_data.get('type_name')
-    task_type_emoji = str(await db.get_task_type_emoji_by_task_type_name(task_type_name))
+    task_type_emoji = str(
+        dict(await db.get_task_type_id_and_emoji_by_task_type_name(task_type_name)).get('task_type_emoji'))
 
     all_needed_documents = list(await db.all_needed_documents_by_task_name(task_type_name))
 
@@ -136,7 +138,8 @@ async def catch_document(message: types.Message, state: FSMContext):
                          reply_markup=ready_keyboard)
 
 
-@dp.callback_query_handler(task_creation_else_callback.filter(action="edit_comment"), state=Task_creation.create_process)
+@dp.callback_query_handler(task_creation_else_callback.filter(action="edit_comment"),
+                           state=Task_creation.create_process)
 @dp.callback_query_handler(comment_markup_callback.filter(action='edit'), state=Task_creation.catch_comment)
 @dp.callback_query_handler(task_creation_else_callback.filter(action="add_comment"), state=Task_creation.create_process)
 async def ask_for_comment(call: types.CallbackQuery, state: FSMContext):
@@ -163,8 +166,8 @@ async def catch_comment(message: types.Message, state: FSMContext):
 @dp.callback_query_handler(comment_markup_callback.filter(action='add'), state=Task_creation.catch_comment)
 @dp.callback_query_handler(edit_callback.filter(action='cancel_editing'), state=Task_creation.edit_files)
 @dp.callback_query_handler(state=Task_creation.catch_photo_file)
-async def submit(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
-    if callback_data.get('action') == 'cancel':
+async def submit(call: types.CallbackQuery, state: FSMContext, callback_data: Union[None, dict] = None):
+    if callback_data is not None and callback_data.get('action') == 'cancel':
         await state.update_data(comment='')
     state_data = await state.get_data()
     logging.info(f"{state_data}")
@@ -180,3 +183,33 @@ async def submit(call: types.CallbackQuery, state: FSMContext, callback_data: di
     await call.message.answer(text,
                               reply_markup=await get_task_creation_keyboard(state_data=state_data))
     await Task_creation.create_process.set()
+
+
+@dp.callback_query_handler(task_creation_else_callback.filter(action='finish'), state=Task_creation.create_process)
+async def finish_task_creation(call: types.CallbackQuery, state: FSMContext):
+    task_id = None
+    new_task_id = None
+    text = None
+
+    state_data = await state.get_data()
+    logging.info(f'{state_data}')
+
+    if state_data.get('my_task_id'):
+        task_id = await edit_my_task(state_data)
+    else:
+        new_task_id = await save_new_task_to_db(state_data, user_tg_id=call.from_user.id)
+
+    await call.message.edit_reply_markup()
+    await call.message.answer("💾Ваша заявка успешно сохранена и отправлена на обработку",
+                              reply_markup=start_user_keyboard)
+
+    await state.reset_state()
+
+    if new_task_id:
+        text = f"‼️ Новая заявка от: {call.from_user.get_mention()}"
+        await bot.send_message(chat_id=329760591, text=text,
+                               reply_markup=get_new_task_keyboard(new_task_id))
+    elif task_id:
+        text = f"‼️ Изменённая заявка от: {call.from_user.get_mention()}"
+        await bot.send_message(chat_id=329760591, text=text,
+                               reply_markup=get_new_task_keyboard(task_id))
