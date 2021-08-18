@@ -7,7 +7,6 @@ BOT_TOKEN = env.str("BOT_TOKEN")
 ADMINS = env.list("ADMINS")
 WORKERS = [329760591]
 
-
 DB_USER = env.str("DB_USER")
 DB_PASS = env.str("DB_PASS")
 DB_NAME = env.str("DB_NAME")

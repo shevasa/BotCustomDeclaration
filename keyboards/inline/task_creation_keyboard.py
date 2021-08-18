@@ -43,8 +43,11 @@ async def get_task_creation_keyboard(state_data: Union[None, dict]):
                                           callback_data=task_creation_else_callback.new(action=action))
     send_button = InlineKeyboardButton(text='📤Отправить заявку',
                                        callback_data=task_creation_else_callback.new(action='finish'))
+    exit_button = InlineKeyboardButton(text='❌Отмена',
+                                       callback_data=task_creation_else_callback.new(action='exit'))
 
     keyboard.add(comment_button)
     keyboard.add(send_button)
+    keyboard.add(exit_button)
 
     return keyboard

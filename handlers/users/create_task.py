@@ -3,12 +3,14 @@ from typing import List, Union
 
 from aiogram import types
 from aiogram.dispatcher import FSMContext
-from aiogram.types import ContentType, MediaGroup, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ContentType, MediaGroup
 
+from filters import Check_text_document
 from keyboards.default import start_user_keyboard
 from keyboards.inline import get_choose_task_type_keyboard, choose_task_type_callback, get_task_creation_keyboard, \
     task_creation_callback, ready_keyboard, edit_document_keyboard, edit_callback, task_creation_else_callback, \
-    comment__inline_keyboard, comment_markup_callback, get_new_task_keyboard
+    comment_markup_callback, get_new_task_keyboard, comment_inline_keyboard, \
+    text_doc_markup_callback, get_text_doc_inline_keyboard
 from loader import dp, db, bot
 from states.task_creation_states import Task_creation
 from utils.edit_my_task_in_db import edit_my_task
@@ -40,8 +42,21 @@ async def start_to_create_task(call: types.CallbackQuery, state: FSMContext, cal
 
     await Task_creation.create_process.set()
 
-    # await state.update_data(data=create_state_dict(all_needed_documents))
-    # await state.update_data(task_type_name=task_type_name)
+
+@dp.callback_query_handler(text_doc_markup_callback.filter(action='edit'), state=Task_creation.catch_text_file)
+@dp.callback_query_handler(task_creation_callback.filter(action='add'), Check_text_document(),
+                           state=Task_creation.create_process)
+async def ask_text_document(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
+    document_type_id = int(callback_data.get('document_type_id'))
+    document_to_ask_for = await db.get_document_type_name_by_id(document_type_id)
+
+    await call.message.answer(
+        f"✍🏼Напишите всю нужную информацию по поводу документа:\n\n <b>{document_to_ask_for}</b>")
+
+    await Task_creation.catch_text_file.set()
+    await state.update_data(now_editing=f"{document_to_ask_for}")
+
+    logging.info(f'{await state.get_data()}')
 
 
 @dp.callback_query_handler(task_creation_callback.filter(action='add'), state=Task_creation.create_process)
@@ -55,6 +70,104 @@ async def ask_for_document(call: types.CallbackQuery, state: FSMContext, callbac
     await state.update_data(now_editing=f"{document_to_ask_for}")
 
     logging.info(f'{await state.get_data()}')
+
+
+@dp.callback_query_handler(task_creation_else_callback.filter(action="edit_comment"),
+                           state=Task_creation.create_process)
+@dp.callback_query_handler(comment_markup_callback.filter(action='edit'), state=Task_creation.catch_comment)
+@dp.callback_query_handler(task_creation_else_callback.filter(action="add_comment"), state=Task_creation.create_process)
+async def ask_for_comment(call: types.CallbackQuery, state: FSMContext):
+    state_data = await state.get_data()
+    if not state_data.get('comment'):
+        text = '🖊Отправьте комментарий, который хотите добавить к своей заявке📃'
+    else:
+        text = '🖊Отправьте новый комментарий, который хотите добавить к своей заявке📃'
+    await call.message.answer(text=text)
+    await Task_creation.catch_comment.set()
+
+
+@dp.message_handler(state=Task_creation.catch_text_file)
+async def catch_text_document(message: types.Message, state: FSMContext):
+    text_document = message.text
+
+    file_dict = {'media': text_document, 'type': message.content_type}
+
+    async with state.proxy() as data:
+        now_editing = data.get("now_editing")
+        data[now_editing] = [file_dict]
+        logging.info(f'{data}')
+
+    document_type_id = int(await db.get_document_type_id_by_doc_name(now_editing))
+    await message.answer(f"Добавить к заявке❓\n\n🔸{now_editing}:\n<b>{text_document}</b>",
+                         reply_markup=get_text_doc_inline_keyboard(document_type_id))
+
+
+@dp.message_handler(state=Task_creation.catch_comment)
+async def catch_comment(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['comment'] = message.text
+
+    await message.answer(f"Ваш комментарий: <b>{message.text}</b>\n\n"
+                         f"Добавить его к вашей заявке?",
+                         reply_markup=comment_inline_keyboard)
+
+
+@dp.message_handler(is_media_group=True, content_types=[ContentType.PHOTO, ContentType.DOCUMENT],
+                    state=Task_creation.catch_photo_file)
+async def handle_albums(message: types.Message, album: List[types.Message], state: FSMContext):
+    for obj in album:
+        if obj.photo:
+            file_id = obj.photo[-1].file_id
+
+        else:
+            file_id = obj[obj.content_type].file_id
+
+        file_dict = {'media': file_id, 'type': obj.content_type}
+
+        async with state.proxy() as data:
+            now_editing = data.get("now_editing")
+            data[now_editing].append(file_dict)
+            logging.info(f'{data}')
+
+    await message.answer(f"Нажмите ✔️ГОТОВО, если это все фото документа: <b>{now_editing}</b>.\n\n"
+                         f"Если нет, то продалжайте загружать нужные фото!",
+                         reply_markup=ready_keyboard)
+
+
+@dp.message_handler(content_types=[ContentType.PHOTO, ContentType.DOCUMENT], state=Task_creation.catch_photo_file)
+async def catch_document(message: types.Message, state: FSMContext):
+    file_id = 0
+    if message.photo:
+        file_id = message.photo[-1].file_id
+    elif message.document:
+        file_id = message.document.file_id
+    file_dict = {'media': file_id, 'type': message.content_type}
+    async with state.proxy() as data:
+        now_editing = data.get("now_editing")
+        data[now_editing].append(file_dict)
+        logging.info(f'{data}')
+
+    await message.answer(f"Нажмите ✔️ГОТОВО, если это все фото документа: <b>{now_editing}</b>.\n\n"
+                         f"Если нет, то продалжайте загружать нужные фото!",
+                         reply_markup=ready_keyboard)
+
+
+@dp.callback_query_handler(task_creation_callback.filter(action='edit'), Check_text_document(),
+                           state=Task_creation.create_process)
+async def edit_text_doc(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
+    document_type_id = int(callback_data.get('document_type_id'))
+    document_type_name = await db.get_document_type_name_by_id(document_type_id)
+
+    state_data = await state.get_data()
+    text_doc = state_data.get(document_type_name)[0]
+    text_doc = text_doc.get('media')
+
+    await call.message.answer(f"{document_type_name}➡️ "
+                              f"<b>{text_doc}</b>\n\n"
+                              f"Изменить иформацию?",
+                              reply_markup=get_text_doc_inline_keyboard(document_type_id=document_type_id,
+                                                                        add_button=False))
+    await Task_creation.catch_text_file.set()
 
 
 @dp.callback_query_handler(task_creation_callback.filter(action='edit'), state=Task_creation.create_process)
@@ -98,79 +211,28 @@ async def catch_new_files(call: types.CallbackQuery, state: FSMContext):
     await Task_creation.catch_photo_file.set()
 
 
-@dp.message_handler(is_media_group=True, content_types=[ContentType.PHOTO, ContentType.DOCUMENT],
-                    state=Task_creation.catch_photo_file)
-async def handle_albums(message: types.Message, album: List[types.Message], state: FSMContext):
-    for obj in album:
-        if obj.photo:
-            file_id = obj.photo[-1].file_id
-
-        else:
-            file_id = obj[obj.content_type].file_id
-
-        file_dict = {'media': file_id, 'type': obj.content_type}
-
-        async with state.proxy() as data:
-            now_editing = data.get("now_editing")
-            data[now_editing].append(file_dict)
-            logging.info(f'{data}')
-
-    await message.answer(f"Нажмите ✔️ГОТОВО, если это все фото документа: <b>{now_editing}</b>.\n\n"
-                         f"Если нет, то продалжайте загружать нужные фото!",
-                         reply_markup=ready_keyboard)
-
-
-@dp.message_handler(content_types=[ContentType.PHOTO, ContentType.DOCUMENT], state=Task_creation.catch_photo_file)
-async def catch_document(message: types.Message, state: FSMContext):
-    file_id = 0
-    if message.photo:
-        file_id = message.photo[-1].file_id
-    elif message.document:
-        file_id = message.document.file_id
-    file_dict = {'media': file_id, 'type': message.content_type}
-    async with state.proxy() as data:
-        now_editing = data.get("now_editing")
-        data[now_editing].append(file_dict)
-        logging.info(f'{data}')
-
-    await message.answer(f"Нажмите ✔️ГОТОВО, если это все фото документа: <b>{now_editing}</b>.\n\n"
-                         f"Если нет, то продалжайте загружать нужные фото!",
-                         reply_markup=ready_keyboard)
-
-
-@dp.callback_query_handler(task_creation_else_callback.filter(action="edit_comment"),
-                           state=Task_creation.create_process)
-@dp.callback_query_handler(comment_markup_callback.filter(action='edit'), state=Task_creation.catch_comment)
-@dp.callback_query_handler(task_creation_else_callback.filter(action="add_comment"), state=Task_creation.create_process)
-async def ask_for_comment(call: types.CallbackQuery, state: FSMContext):
-    state_data = await state.get_data()
-    if not state_data.get('comment'):
-        text = '🖊Отправьте комментарий, который хотите добавить к своей заявке📃'
-    else:
-        text = '🖊Отправьте новый комментарий, который хотите добавить к своей заявке📃'
-    await call.message.answer(text=text)
-    await Task_creation.catch_comment.set()
-
-
-@dp.message_handler(state=Task_creation.catch_comment)
-async def catch_comment(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['comment'] = message.text
-
-    await message.answer(f"Ваш комментарий: <b>{message.text}</b>\n\n"
-                         f"Добавить его к вашей заявке?",
-                         reply_markup=comment__inline_keyboard)
-
-
+@dp.callback_query_handler(text_doc_markup_callback.filter(action='cancel'), state=Task_creation.catch_text_file)
+@dp.callback_query_handler(text_doc_markup_callback.filter(action='add'), state=Task_creation.catch_text_file)
 @dp.callback_query_handler(comment_markup_callback.filter(action='cancel'), state=Task_creation.catch_comment)
 @dp.callback_query_handler(comment_markup_callback.filter(action='add'), state=Task_creation.catch_comment)
 @dp.callback_query_handler(edit_callback.filter(action='cancel_editing'), state=Task_creation.edit_files)
 @dp.callback_query_handler(state=Task_creation.catch_photo_file)
 async def submit(call: types.CallbackQuery, state: FSMContext, callback_data: Union[None, dict] = None):
-    if callback_data is not None and callback_data.get('action') == 'cancel':
+    current_state = await state.get_state()
+    now_editing = (await state.get_data()).get('now_editing')
+
+    if callback_data is not None and callback_data.get(
+            'action') == 'cancel' and current_state == 'Task_creation:catch_text_file':
+        async with state.proxy() as data:
+            data[now_editing] = []
+
+    elif callback_data is not None and callback_data.get(
+            'action') == 'cancel' and current_state == 'Task_creation:catch_comment':
         await state.update_data(comment='')
+
     state_data = await state.get_data()
     logging.info(f"{state_data}")
+
     if state_data.get('comment'):
         text = f"<b>Ваша заявка</b>\n\n" \
                f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n" \
@@ -180,6 +242,7 @@ async def submit(call: types.CallbackQuery, state: FSMContext, callback_data: Un
         text = f"<b>Ваша заявка</b>\n\n" \
                f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n" \
                f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
+
     await call.message.answer(text,
                               reply_markup=await get_task_creation_keyboard(state_data=state_data))
     await Task_creation.create_process.set()
@@ -189,7 +252,6 @@ async def submit(call: types.CallbackQuery, state: FSMContext, callback_data: Un
 async def finish_task_creation(call: types.CallbackQuery, state: FSMContext):
     task_id = None
     new_task_id = None
-    text = None
 
     state_data = await state.get_data()
     logging.info(f'{state_data}')
@@ -209,7 +271,18 @@ async def finish_task_creation(call: types.CallbackQuery, state: FSMContext):
         text = f"‼️ Новая заявка от: {call.from_user.get_mention()}"
         await bot.send_message(chat_id=329760591, text=text,
                                reply_markup=get_new_task_keyboard(new_task_id))
+
     elif task_id:
         text = f"‼️ Изменённая заявка от: {call.from_user.get_mention()}"
         await bot.send_message(chat_id=329760591, text=text,
                                reply_markup=get_new_task_keyboard(task_id))
+
+        # 925075502
+
+
+@dp.callback_query_handler(task_creation_else_callback.filter(action='exit'), state=Task_creation.create_process)
+async def exit_task_creation(call: types.CallbackQuery, state: FSMContext):
+    await state.reset_state()
+    await call.message.edit_text('🚪Вы вышли из редактора заявки')
+    await call.message.answer('⌨️Воспользуйтесь клавиатурой⬇️',
+                              reply_markup=start_user_keyboard)

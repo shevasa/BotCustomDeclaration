@@ -22,15 +22,25 @@ async def show_task(call: types.CallbackQuery, callback_data: dict):
         document_type_name = dictionary.get('document_type_name')
         document_type_id = dictionary.get('document_type_id')
 
-        all_saved_files = [dict(file) for file in await db.get_all_task_files(task_id, document_type_id)]
+        text_types_id = [dictionary['document_type_id'] for dictionary in
+                     list(await db.get_document_type_id_that_can_be_text())]
 
+        all_saved_files = [dict(file) for file in await db.get_all_task_files(task_id, document_type_id)]
         documents_with_saved_files[document_type_name] = all_saved_files
 
-        await call.message.answer(f"⬇️{document_type_name}⬇️", disable_notification=True)
-        if all_saved_files:
-            await call.message.answer_media_group(media=all_saved_files, disable_notification=True)
+        if document_type_id in text_types_id:
+            await call.message.answer(f'⬇️{document_type_name}⬇️', disable_notification=True)
+            if all_saved_files:
+                await call.message.answer(f"<b>{all_saved_files[0].get('media')}</b>", disable_notification=True)
+            else:
+                await call.message.answer("----------Пусто---------", disable_notification=True)
+
         else:
-            await call.message.answer("----------Пусто---------", disable_notification=True)
+            await call.message.answer(f"⬇️{document_type_name}⬇️", disable_notification=True)
+            if all_saved_files:
+                await call.message.answer_media_group(media=all_saved_files, disable_notification=True)
+            else:
+                await call.message.answer("----------Пусто---------", disable_notification=True)
 
     if comment:
         await call.message.answer(f"Комментарий➡️ <b>{comment}</b>", disable_notification=True)

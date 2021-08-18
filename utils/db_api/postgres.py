@@ -97,6 +97,12 @@ class Database:
         ($1, $2, $3, $4)"""
         return await self.execute(sql, document_file_id, task_id, document_type_id, document_content_type, execute=True)
 
+    async def save_new_text_document_to_db(self, task_id: int, document_type_id: int,
+                                           document_content_type: str, document_text: str):
+        sql = """insert into documents(task_id, document_type_id, document_content_type, text) values
+        ($1, $2, $3, $4)"""
+        return await self.execute(sql, task_id, document_type_id, document_content_type, document_text, execute=True)
+
     async def get_task_by_task_id(self, task_id):
         sql = """select * from tasks where task_id=$1"""
         return await self.execute(sql, task_id, fetchrow=True)
@@ -117,3 +123,11 @@ class Database:
     async def delete_task_files_by_task_id(self, task_id):
         sql = """delete from documents where task_id=$1"""
         return await self.execute(sql, task_id, execute=True)
+
+    async def get_document_type_id_that_can_be_text(self):
+        sql = """select document_type_id from document_types where document_type_name like 'Информация%'"""
+        return await self.execute(sql, fetch=True)
+
+    async def get_document_type_id_by_doc_name(self, document_name: str):
+        sql = "select document_type_id from document_types where document_type_name=$1"
+        return await self.execute(sql, document_name, fetchval=True)
