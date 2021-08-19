@@ -12,7 +12,7 @@ def create_my_task_text(task: dict):
     if num_of_files:
         text += f"Количество файлов: <b>{num_of_files}\n\n</b>"
     if status_name:
-        text += f"Статус заявки: <b>{status_name}</b>\n\n"
+        text += f"Статус заявки: <b>{status_name}</b>"
     return text
 
 

@@ -1,3 +1,4 @@
+import logging
 from typing import Union
 
 import asyncpg
@@ -86,10 +87,11 @@ class Database:
         return await self.execute(sql, document_type_id, fetchval=True)
 
     async def create_new_task(self, task_type_id: int, user_tg_id: int, comment: str, worker_tg_id=329760591,
-                              status_id=1):
-        sql = """insert into tasks (task_type_id, user_tg_id, worker_tg_id, status_id, comment) 
-        values ($1, $2, $3, $4, $5) returning *"""
-        return await self.execute(sql, task_type_id, user_tg_id, worker_tg_id, status_id, comment, fetchrow=True)
+                              status_id=1, worker_comment: str = ""):
+        sql = """insert into tasks (task_type_id, user_tg_id, worker_tg_id, status_id, comment, worker_comment) 
+        values ($1, $2, $3, $4, $5, $6) returning *"""
+        return await self.execute(sql, task_type_id, user_tg_id, worker_tg_id, status_id, comment, worker_comment,
+                                  fetchrow=True)
 
     async def save_new_document_to_db(self, document_file_id: str, task_id: int, document_type_id: int,
                                       document_content_type: str):
@@ -104,8 +106,19 @@ class Database:
         return await self.execute(sql, task_id, document_type_id, document_content_type, document_text, execute=True)
 
     async def get_task_by_task_id(self, task_id):
-        sql = """select * from tasks where task_id=$1"""
+        sql = """select tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id from tasks t
+    left join task_types tp on tp.task_type_id=t.task_type_id
+    left join (select task_id, count(document_file_id) as num_of_files from documents group by task_id) a on a.task_id=t.task_id
+    left join task_status ts on ts.task_status_id=t.status_id 
+    where t.task_id=$1"""
         return await self.execute(sql, task_id, fetchrow=True)
+
+    async def get_tasks_by_status_id(self, status_id):
+        sql = """select t.task_id, t.user_tg_id, tp.task_type_name, ts.task_status_name, t.comment, t.worker_comment from tasks t
+            left join task_types tp on tp.task_type_id=t.task_type_id
+            left join task_status ts on ts.task_status_id=t.status_id
+            where t.status_id=$1"""
+        return await self.execute(sql, status_id, fetch=True)
 
     async def get_all_task_files(self, task_id, document_type_id):
         sql = """select d.document_file_id as media, d.document_content_type as type from documents d
@@ -131,3 +144,13 @@ class Database:
     async def get_document_type_id_by_doc_name(self, document_name: str):
         sql = "select document_type_id from document_types where document_type_name=$1"
         return await self.execute(sql, document_name, fetchval=True)
+
+    async def change_task_status(self, task_id: int, new_task_status_id: int, worker_comment: Union[None, str] = None):
+        if new_task_status_id == 3 and worker_comment:
+            sql0 = "update tasks set status_id=$1 where task_id=$2 returning user_tg_id"
+            sql1 = "update tasks set worker_comment=$1 where task_id=$2 returning user_tg_id"
+            await self.execute(sql0, new_task_status_id, task_id, fetchval=True)
+            return await self.execute(sql1, worker_comment, task_id, fetchval=True)
+        else:
+            sql = "update tasks set status_id=$1 where task_id=$2 returning user_tg_id"
+            return await self.execute(sql, new_task_status_id, task_id, fetchval=True)

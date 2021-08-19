@@ -1,4 +1,5 @@
 from .help import dp
+from .worker_menu import dp
 from .start import dp
 from .create_task import dp
 from .worker import dp

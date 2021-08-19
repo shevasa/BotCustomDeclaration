@@ -5,7 +5,7 @@ env.read_env()
 
 BOT_TOKEN = env.str("BOT_TOKEN")
 ADMINS = env.list("ADMINS")
-WORKERS = [329760591]
+WORKERS = env.list("WORKERS")
 
 DB_USER = env.str("DB_USER")
 DB_PASS = env.str("DB_PASS")

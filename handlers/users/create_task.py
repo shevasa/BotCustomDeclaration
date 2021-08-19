@@ -166,7 +166,7 @@ async def edit_text_doc(call: types.CallbackQuery, state: FSMContext, callback_d
                               f"<b>{text_doc}</b>\n\n"
                               f"Изменить иформацию?",
                               reply_markup=get_text_doc_inline_keyboard(document_type_id=document_type_id,
-                                                                        add_button=False))
+                                                                        add_button=False, clear=False))
     await Task_creation.catch_text_file.set()
 
 
@@ -223,8 +223,11 @@ async def submit(call: types.CallbackQuery, state: FSMContext, callback_data: Un
 
     if callback_data is not None and callback_data.get(
             'action') == 'cancel' and current_state == 'Task_creation:catch_text_file':
-        async with state.proxy() as data:
-            data[now_editing] = []
+        if callback_data.get('clear_cancel') == "False":
+            pass
+        else:
+            async with state.proxy() as data:
+                data[now_editing] = []
 
     elif callback_data is not None and callback_data.get(
             'action') == 'cancel' and current_state == 'Task_creation:catch_comment':
