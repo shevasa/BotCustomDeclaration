@@ -114,9 +114,10 @@ class Database:
         return await self.execute(sql, task_id, fetchrow=True)
 
     async def get_tasks_by_status_id(self, status_id):
-        sql = """select t.task_id, t.user_tg_id, tp.task_type_name, ts.task_status_name, t.comment, t.worker_comment from tasks t
+        sql = """select t.task_id, u.full_name, tp.task_type_name, ts.task_status_name, t.comment, t.worker_comment from tasks t
             left join task_types tp on tp.task_type_id=t.task_type_id
             left join task_status ts on ts.task_status_id=t.status_id
+            left join users u on u.telegram_id=t.user_tg_id 
             where t.status_id=$1"""
         return await self.execute(sql, status_id, fetch=True)
 
@@ -126,7 +127,7 @@ class Database:
         return await self.execute(sql, task_id, document_type_id, fetch=True)
 
     async def get_all_tasks_by_user_tg_id(self, user_tg_id):
-        sql = """select tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id from tasks t
+        sql = """select t.task_id, tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id from tasks t
     left join task_types tp on tp.task_type_id=t.task_type_id
     left join (select task_id, count(document_file_id) as num_of_files from documents group by task_id) a on a.task_id=t.task_id
     left join task_status ts on ts.task_status_id=t.status_id 

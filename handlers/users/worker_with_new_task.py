@@ -4,11 +4,14 @@ from aiogram import types
 from aiogram.dispatcher import FSMContext
 
 from keyboards.inline import new_task_callback, get_worker_new_task_keyboard, worker_task_callback, \
-    comment_inline_keyboard, comment_markup_callback, get_my_task_keyboard
+    comment_inline_keyboard, comment_markup_callback, get_my_task_keyboard, task_in_work_callback, \
+    get_worker_task_in_work_keyboard, task_in_editing_callback, get_worker_task_in_editing_keyboard
 from loader import dp, db, bot
 from utils.misc import create_state_dict, create_my_task_text
 
 
+@dp.callback_query_handler(task_in_editing_callback.filter(action='show_info'))
+@dp.callback_query_handler(task_in_work_callback.filter(action='show_info'))
 @dp.callback_query_handler(comment_markup_callback.filter(action='cancel'), state="comment_confirm")
 @dp.callback_query_handler(new_task_callback.filter())
 async def show_task(call: types.CallbackQuery, state: FSMContext, callback_data: dict):
@@ -16,13 +19,17 @@ async def show_task(call: types.CallbackQuery, state: FSMContext, callback_data:
         'task_id'))
     if await state.get_state():
         await state.reset_state()
-    logging.info(call)
+    logging.info(callback_data)
     task_info = dict(await db.get_task_by_task_id(task_id))
     task_type_name = await db.get_task_type_name_by_task_id(task_id)
     comment = task_info.get('comment')
+    worker_comment = task_info.get('worker_comment')
 
     all_needed_documents = await db.all_needed_documents_by_task_name(task_type_name)
     documents_with_saved_files = create_state_dict(all_needed_documents)
+
+    await call.message.answer(f"=========================")
+    await call.message.answer(f"<b>ЗАЯВКА №{task_id}</b>")
 
     for dictionary in all_needed_documents:
         document_type_name = dictionary.get('document_type_name')
@@ -50,9 +57,22 @@ async def show_task(call: types.CallbackQuery, state: FSMContext, callback_data:
                 await call.message.answer("----------Пусто---------", disable_notification=True)
 
     if comment:
-        await call.message.answer(f"Комментарий➡️ <b>{comment}</b>", disable_notification=True)
+        await call.message.answer(f"Комментарий пользователя➡️ <b>{comment}</b>", disable_notification=True)
 
-    await call.message.answer("Что делаем с этой заявкой?", reply_markup=get_worker_new_task_keyboard(task_id=task_id))
+    if worker_comment and callback_data['@']=='task_in_editing':
+        await call.message.answer(f"Комментарий исполнителя➡️ <b>{worker_comment}</b>", disable_notification=True)
+
+    await call.message.answer(f"=========================")
+
+    if callback_data['@'] == 'task_in_work':
+        await call.message.answer("Что делаем с этой заявкой?",
+                                  reply_markup=get_worker_task_in_work_keyboard(task_id=task_id, show_info=False))
+    elif callback_data['@'] == 'task_in_editing':
+        await call.message.answer("Что делаем с этой заявкой?",
+                                  reply_markup=get_worker_task_in_editing_keyboard(task_id=task_id, show_info=False))
+    else:
+        await call.message.answer("Что делаем с этой заявкой?",
+                                  reply_markup=get_worker_new_task_keyboard(task_id=task_id))
 
 
 @dp.callback_query_handler(worker_task_callback.filter(action='take_to_work'))

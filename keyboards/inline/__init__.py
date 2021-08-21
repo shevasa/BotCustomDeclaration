@@ -6,4 +6,6 @@ from .submit_keyboard import comment_inline_keyboard, comment_markup_callback, g
     text_doc_markup_callback
 from .show_new_task_keyboard import get_new_task_keyboard, new_task_callback
 from .my_tasks_keyboard import get_my_task_keyboard, my_task_callback
-from .worker_new_task_keyboard import get_worker_new_task_keyboard, worker_task_callback
+from .worker_task_keyboard import get_worker_new_task_keyboard, worker_task_callback, get_worker_task_in_work_keyboard, \
+    task_in_work_callback, get_worker_task_in_editing_keyboard, task_in_editing_callback, \
+    get_worker_task_finished_keyboard

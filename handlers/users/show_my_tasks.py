@@ -19,8 +19,14 @@ async def show_tasks(message: types.Message):
     for task in all_user_tasks:
         task_text = create_my_task_text(task)
         task_id = task.get('task_id')
+        task_status_name = task.get('task_status_name')
 
-        await message.answer(text=task_text, disable_notification=True, reply_markup=get_my_task_keyboard(task_id))
+        if task_status_name == "Завершена":
+            reply_markup = None
+        else:
+            reply_markup = get_my_task_keyboard(task_id)
+
+        await message.answer(text=task_text, disable_notification=True, reply_markup=reply_markup)
 
 
 @dp.callback_query_handler(my_task_callback.filter())
@@ -57,6 +63,7 @@ async def edit_task(call: types.CallbackQuery, state: FSMContext, callback_data:
         text = f"<b>Ваша заявка</b>\n\n" \
                f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n" \
                f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
+
     await call.message.answer(text,
                               reply_markup=await get_task_creation_keyboard(state_data=state_data))
     await Task_creation.create_process.set()
