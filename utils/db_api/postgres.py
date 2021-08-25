@@ -106,7 +106,7 @@ class Database:
         return await self.execute(sql, task_id, document_type_id, document_content_type, document_text, execute=True)
 
     async def get_task_by_task_id(self, task_id):
-        sql = """select tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id from tasks t
+        sql = """select t.user_tg_id, tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id, t.worker_comment from tasks t
     left join task_types tp on tp.task_type_id=t.task_type_id
     left join (select task_id, count(document_file_id) as num_of_files from documents group by task_id) a on a.task_id=t.task_id
     left join task_status ts on ts.task_status_id=t.status_id 
@@ -155,3 +155,7 @@ class Database:
         else:
             sql = "update tasks set status_id=$1 where task_id=$2 returning user_tg_id"
             return await self.execute(sql, new_task_status_id, task_id, fetchval=True)
+
+    async def get_number_of_tasks_by_status_id(self, status_id):
+        sql = "select count(task_id) from tasks where status_id=$1"
+        return await self.execute(sql, status_id, fetchval=True)

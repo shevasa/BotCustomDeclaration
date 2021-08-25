@@ -3,11 +3,12 @@ import logging
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 
+from keyboards.default import start_user_keyboard, get_start_worker_keyboard
 from keyboards.inline import new_task_callback, get_worker_new_task_keyboard, worker_task_callback, \
     comment_inline_keyboard, comment_markup_callback, get_my_task_keyboard, task_in_work_callback, \
     get_worker_task_in_work_keyboard, task_in_editing_callback, get_worker_task_in_editing_keyboard
 from loader import dp, db, bot
-from utils.misc import create_state_dict, create_my_task_text
+from utils.misc import create_state_dict
 
 
 @dp.callback_query_handler(task_in_editing_callback.filter(action='show_info'))
@@ -80,9 +81,11 @@ async def take_task_to_work(call: types.CallbackQuery, callback_data: dict):
     task_id = int(callback_data.get('task_id'))
     user_tg_id = int(await db.change_task_status(task_id=task_id, new_task_status_id=2))
 
-    await call.message.edit_text("✅Заявка успешно принята в работу")
+    await call.message.edit_reply_markup()
+    await call.message.answer("✅Заявка успешно принята в работу", reply_markup=await get_start_worker_keyboard())
 
-    await bot.send_message(chat_id=user_tg_id, text="✅Ваша заявка успешно принята исполнителем и находиться в работе!")
+    await bot.send_message(chat_id=user_tg_id, text="✅Ваша заявка успешно принята исполнителем и находиться в работе!",
+                           reply_markup=start_user_keyboard)
 
 
 @dp.callback_query_handler(comment_markup_callback.filter(action='edit'), state="comment_confirm")
@@ -113,12 +116,14 @@ async def send_task_to_editing(call: types.CallbackQuery, state: FSMContext):
     task_id = int(state_data.get('task_id'))
     user_tg_id = int(await db.change_task_status(task_id=task_id, new_task_status_id=3, worker_comment=worker_comment))
     task = dict(await db.get_task_by_task_id(task_id))
-    task_text = create_my_task_text(task)
+    task_type_name = str(await db.get_task_type_name_by_task_id(task_id))
+
+    task_text = f"Заявка <b>№{task_id}</b>\n\nТип услуги: <b>{task_type_name}</b>"
 
     await bot.send_message(chat_id=user_tg_id,
                            text=task_text + f"\n\n‼️Комментарий исполнителя‼️\n<b>{worker_comment}</b>",
                            reply_markup=get_my_task_keyboard(task_id))
 
-    await call.message.edit_text("📬Заявка отправлена на исправление")
+    await call.message.answer("📬Заявка отправлена на исправление", reply_markup=await get_start_worker_keyboard())
 
     await state.reset_state()

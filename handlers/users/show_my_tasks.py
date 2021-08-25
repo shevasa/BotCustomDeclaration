@@ -35,6 +35,7 @@ async def edit_task(call: types.CallbackQuery, state: FSMContext, callback_data:
     task_info = dict(await db.get_task_by_task_id(task_id))
     task_type_name = await db.get_task_type_name_by_task_id(task_id)
     comment = task_info.get('comment')
+    worker_comment = task_info.get('worker_comment')
 
     all_needed_documents = list(await db.all_needed_documents_by_task_name(task_type_name))
     await state.update_data(data=create_state_dict(all_needed_documents))
@@ -50,19 +51,21 @@ async def edit_task(call: types.CallbackQuery, state: FSMContext, callback_data:
         await state.update_data({document_type_name: all_saved_files})
 
     await state.update_data(my_task_id=task_id)
+    if worker_comment:
+        await state.update_data(worker_comment=worker_comment)
 
     state_data = await state.get_data()
     logging.info(state_data)
 
+    text = f"<b>Ваша заявка №{task_id}</b>\n\n" \
+           f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n"
+
     if state_data.get('comment'):
-        text = f"<b>Ваша заявка</b>\n\n" \
-               f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n" \
-               f"Ваш комментарий: <b>{state_data['comment']}</b>\n\n" \
-               f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
-    else:
-        text = f"<b>Ваша заявка</b>\n\n" \
-               f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n" \
-               f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
+        text += f"Ваш комментарий: <b>{state_data['comment']}</b>\n\n"
+    if state_data.get('worker_comment'):
+        text += f"Комментарий исполнителя: <b>{worker_comment}</b>\n\n"
+
+    text += f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
 
     await call.message.answer(text,
                               reply_markup=await get_task_creation_keyboard(state_data=state_data))

@@ -235,16 +235,17 @@ async def submit(call: types.CallbackQuery, state: FSMContext, callback_data: Un
 
     state_data = await state.get_data()
     logging.info(f"{state_data}")
+    worker_comment = state_data.get('worker_comment')
+
+    text = f"<b>Ваша заявка</b>\n\n" \
+           f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n"
 
     if state_data.get('comment'):
-        text = f"<b>Ваша заявка</b>\n\n" \
-               f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n" \
-               f"Ваш комментарий: <b>{state_data['comment']}</b>\n\n" \
-               f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
-    else:
-        text = f"<b>Ваша заявка</b>\n\n" \
-               f"Тип услуги: <b>{state_data.get('task_type_name')}</b>\n\n" \
-               f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
+        text += f"Ваш комментарий: <b>{state_data['comment']}</b>\n\n"
+    elif state_data.get('worker_comment'):
+        text += f"Комментарий исполнителя: <b>{worker_comment}</b>"
+
+    text += f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
 
     await call.message.answer(text,
                               reply_markup=await get_task_creation_keyboard(state_data=state_data))

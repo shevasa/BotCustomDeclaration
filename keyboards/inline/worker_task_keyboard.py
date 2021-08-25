@@ -28,11 +28,16 @@ def get_worker_task_in_work_keyboard(task_id: int, show_info: bool = True):
     show_task_info = InlineKeyboardButton(text='👀Просмотреть заявку',
                                           callback_data=task_in_work_callback.new(action='show_info', task_id=task_id))
 
+    send_to_editing = InlineKeyboardButton(text="📤Отправить на исправление",
+                                           callback_data=worker_task_callback.new(action='send_to_editing',
+                                                                                  task_id=task_id))
+
     finish_success = InlineKeyboardButton(text='✅Сообщить о готовности',
                                           callback_data=task_in_work_callback.new(action='finish', task_id=task_id))
 
     if show_info:
         keyboard.add(show_task_info)
+    keyboard.add(send_to_editing)
     keyboard.add(finish_success)
 
     return keyboard
