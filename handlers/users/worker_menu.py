@@ -3,6 +3,7 @@ import logging
 from aiogram import types
 from aiogram.dispatcher.filters import Text
 
+from data.config import ADMINS
 from filters import IsWorker
 from keyboards.default import get_start_worker_keyboard
 from keyboards.inline import get_new_task_keyboard, get_worker_task_in_work_keyboard, task_in_work_callback, \
@@ -14,9 +15,10 @@ from utils.misc import create_worker_task_text
 
 @dp.message_handler(IsWorker(), text="/start")
 async def worker_start(message: types.Message):
+    admin = str(message.from_user.id) in ADMINS
     await message.answer(f'Здравствуйте {message.from_user.full_name}\n\n'
                          f'Воспользуйтесь клавиатурой для работы с ботом!',
-                         reply_markup=await get_start_worker_keyboard())
+                         reply_markup=await get_start_worker_keyboard(admin=admin))
 
 
 @dp.message_handler(IsWorker(), Text(contains="📥Заявки на проверку"))
@@ -27,32 +29,35 @@ async def new_tasks(message: types.Message):
                         list(await db.get_tasks_by_status_id(status_id=4))]
     all_tasks = all_new_tasks + all_edited_tasks
     logging.info(all_tasks)
+    admin = str(message.from_user.id) in ADMINS
     if all_tasks:
         for task in all_tasks:
             task_id = task.get('task_id')
             task_text = create_worker_task_text(task)
             await message.answer(text=task_text, reply_markup=get_new_task_keyboard(task_id))
     else:
-        await message.answer('📭Новых заявок на данный момент нет!', reply_markup=await get_start_worker_keyboard())
+        await message.answer('📭Новых заявок на данный момент нет!', reply_markup=await get_start_worker_keyboard(admin=admin))
 
 
 @dp.message_handler(IsWorker(), Text(contains="🛠Заявки в работе"))
 async def tasks_in_work(message: types.Message):
     all_tasks_in_work = [dict(dictionary) for dictionary in
                          list(await db.get_tasks_by_status_id(status_id=2))]
+    admin = str(message.from_user.id) in ADMINS
     if all_tasks_in_work:
         for task in all_tasks_in_work:
             task_id = task.get('task_id')
             task_text = create_worker_task_text(task)
             await message.answer(text=task_text, reply_markup=get_worker_task_in_work_keyboard(task_id))
     else:
-        await message.answer('📭Заявок в работе на данный момент нет!', reply_markup=await get_start_worker_keyboard())
+        await message.answer('📭Заявок в работе на данный момент нет!', reply_markup=await get_start_worker_keyboard(admin=admin))
 
 
 @dp.message_handler(IsWorker(), Text(contains="🖋Заявки в исправлении"))
 async def tasks_in_editing(message: types.Message):
     all_tasks_in_work = [dict(dictionary) for dictionary in
                          list(await db.get_tasks_by_status_id(status_id=3))]
+    admin = str(message.from_user.id) in ADMINS
     if all_tasks_in_work:
         for task in all_tasks_in_work:
             task_id = task.get('task_id')
@@ -60,13 +65,14 @@ async def tasks_in_editing(message: types.Message):
             await message.answer(text=task_text, reply_markup=get_worker_task_in_editing_keyboard(task_id))
     else:
         await message.answer('📭Заявок в исправлении на данный момент нет!',
-                             reply_markup=await get_start_worker_keyboard())
+                             reply_markup=await get_start_worker_keyboard(admin=admin))
 
 
 @dp.message_handler(IsWorker(), Text(contains="🗃Архив заявок"))
 async def tasks_archive(message: types.Message):
     all_tasks_in_work = [dict(dictionary) for dictionary in
                          list(await db.get_tasks_by_status_id(status_id=5))]
+    admin = str(message.from_user.id) in ADMINS
     if all_tasks_in_work:
         for task in all_tasks_in_work:
             task_id = task.get('task_id')
@@ -74,7 +80,7 @@ async def tasks_archive(message: types.Message):
             await message.answer(text=task_text, reply_markup=get_worker_task_finished_keyboard(task_id))
     else:
         await message.answer('📭Завершенных заявок на данный момент нет!',
-                             reply_markup=await get_start_worker_keyboard())
+                             reply_markup=await get_start_worker_keyboard(admin=admin))
 
 
 @dp.callback_query_handler(IsWorker(), task_in_work_callback.filter(action='finish'))

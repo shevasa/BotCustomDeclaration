@@ -3,7 +3,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from loader import db
 
 
-async def get_start_worker_keyboard():
+async def get_start_worker_keyboard(admin: bool = False):
     n_tasks = int(await db.get_number_of_tasks_by_status_id(1))+int(await db.get_number_of_tasks_by_status_id(4))
     start_worker_keyboard = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[
         [
@@ -20,4 +20,7 @@ async def get_start_worker_keyboard():
             KeyboardButton(text=f"🗃Архив заявок ({await db.get_number_of_tasks_by_status_id(5)})")
         ],
     ])
+    admin_system_button = KeyboardButton(text="🧑‍💼Админ система")
+    if admin:
+        start_worker_keyboard.add(admin_system_button)
     return start_worker_keyboard

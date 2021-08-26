@@ -156,6 +156,25 @@ class Database:
             sql = "update tasks set status_id=$1 where task_id=$2 returning user_tg_id"
             return await self.execute(sql, new_task_status_id, task_id, fetchval=True)
 
-    async def get_number_of_tasks_by_status_id(self, status_id):
-        sql = "select count(task_id) from tasks where status_id=$1"
-        return await self.execute(sql, status_id, fetchval=True)
+    async def get_number_of_tasks_by_status_id(self, status_id, task_type_id: Union[int, None] = None):
+        if task_type_id is None:
+            sql = "select count(task_id) from tasks where status_id=$1"
+            return await self.execute(sql, status_id, fetchval=True)
+        else:
+            sql = "select count(task_id) from tasks where status_id=$1 and task_type_id=$2"
+            return await self.execute(sql, status_id, task_type_id, fetchval=True)
+
+    async def get_ignored_tasks(self):
+        sql = "select t.task_id, u.full_name, t.created_at, ts.task_status_name, tt.task_type_name from tasks t " \
+              "left join task_types tt on tt.task_type_id=t.task_type_id " \
+              "left join users u on u.telegram_id=t.user_tg_id " \
+              "left join task_status ts on ts.task_status_id=t.status_id " \
+              "where age(current_timestamp, t.created_at)>'1 minute'" \
+              "and tt.task_type_name='МД' " \
+              "and t.status_id=1 or t.status_id=4"
+        return await self.execute(sql, fetch=True)
+
+    async def add_admin_comment_by_task_id(self, task_id, admin_comment):
+        sql = """update tasks set admin_comment=$2 where task_id=$1"""
+        return await self.execute(sql, task_id, admin_comment, execute=True)
+

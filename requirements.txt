@@ -6,3 +6,4 @@ python-dotenv
 environs~=9.3.2
 asyncpg~=0.22.0
 typing~=3.7.4.3
+APScheduler~=3.7.0
