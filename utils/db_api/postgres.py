@@ -106,20 +106,21 @@ class Database:
         return await self.execute(sql, task_id, document_type_id, document_content_type, document_text, execute=True)
 
     async def get_task_by_task_id(self, task_id):
-        sql = """select t.user_tg_id, tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id, t.worker_comment from tasks t
+        sql = """select t.user_tg_id, tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id, 
+        t.worker_comment, t.admin_comment, t.worker_tg_id from tasks t
     left join task_types tp on tp.task_type_id=t.task_type_id
     left join (select task_id, count(document_file_id) as num_of_files from documents group by task_id) a on a.task_id=t.task_id
     left join task_status ts on ts.task_status_id=t.status_id 
     where t.task_id=$1"""
         return await self.execute(sql, task_id, fetchrow=True)
 
-    async def get_tasks_by_status_id(self, status_id):
+    async def get_tasks_by_status_id(self, status_id, worker_tg_id):
         sql = """select t.task_id, u.full_name, tp.task_type_name, ts.task_status_name, t.comment, t.worker_comment from tasks t
             left join task_types tp on tp.task_type_id=t.task_type_id
             left join task_status ts on ts.task_status_id=t.status_id
             left join users u on u.telegram_id=t.user_tg_id 
-            where t.status_id=$1"""
-        return await self.execute(sql, status_id, fetch=True)
+            where t.status_id=$1 and t.worker_tg_id=$2"""
+        return await self.execute(sql, status_id, worker_tg_id, fetch=True)
 
     async def get_all_task_files(self, task_id, document_type_id):
         sql = """select d.document_file_id as media, d.document_content_type as type from documents d
@@ -156,25 +157,31 @@ class Database:
             sql = "update tasks set status_id=$1 where task_id=$2 returning user_tg_id"
             return await self.execute(sql, new_task_status_id, task_id, fetchval=True)
 
-    async def get_number_of_tasks_by_status_id(self, status_id, task_type_id: Union[int, None] = None):
-        if task_type_id is None:
+    async def get_number_of_tasks_by_status_id(self, status_id, worker_tg_id: Union[int, None] = None):
+        if worker_tg_id is None:
             sql = "select count(task_id) from tasks where status_id=$1"
             return await self.execute(sql, status_id, fetchval=True)
         else:
-            sql = "select count(task_id) from tasks where status_id=$1 and task_type_id=$2"
-            return await self.execute(sql, status_id, task_type_id, fetchval=True)
+            sql = "select count(task_id) from tasks where status_id=$1 and worker_tg_id=$2"
+            return await self.execute(sql, status_id, worker_tg_id, fetchval=True)
 
     async def get_ignored_tasks(self):
         sql = "select t.task_id, u.full_name, t.created_at, ts.task_status_name, tt.task_type_name from tasks t " \
               "left join task_types tt on tt.task_type_id=t.task_type_id " \
               "left join users u on u.telegram_id=t.user_tg_id " \
               "left join task_status ts on ts.task_status_id=t.status_id " \
-              "where age(current_timestamp, t.created_at)>'1 minute'" \
+              "where age(current_timestamp, t.created_at)>'1 minute' " \
               "and tt.task_type_name='МД' " \
-              "and t.status_id=1 or t.status_id=4"
+              "and t.status_id=1 or " \
+              "age(current_timestamp, t.created_at)>'1 minute' " \
+              "and tt.task_type_name='МД' " \
+              "and t.status_id=1"
         return await self.execute(sql, fetch=True)
 
     async def add_admin_comment_by_task_id(self, task_id, admin_comment):
         sql = """update tasks set admin_comment=$2 where task_id=$1"""
         return await self.execute(sql, task_id, admin_comment, execute=True)
 
+    async def select_worker_by_task_type_id(self, task_type_id):
+        sql = 'select worker_id from worker_task_types where task_type_id=$1'
+        return await self.execute(sql, task_type_id, fetchval=True)

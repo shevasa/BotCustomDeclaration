@@ -15,18 +15,20 @@ from utils.misc import create_worker_task_text
 
 @dp.message_handler(IsWorker(), text="/start")
 async def worker_start(message: types.Message):
+    worker_tg_id = message.from_user.id
     admin = str(message.from_user.id) in ADMINS
     await message.answer(f'Здравствуйте {message.from_user.full_name}\n\n'
                          f'Воспользуйтесь клавиатурой для работы с ботом!',
-                         reply_markup=await get_start_worker_keyboard(admin=admin))
+                         reply_markup=await get_start_worker_keyboard(admin=admin, worker_tg_id=worker_tg_id))
 
 
 @dp.message_handler(IsWorker(), Text(contains="📥Заявки на проверку"))
 async def new_tasks(message: types.Message):
+    worker_tg_id = message.from_user.id
     all_new_tasks = [dict(dictionary) for dictionary in
-                     list(await db.get_tasks_by_status_id(status_id=1))]
+                     list(await db.get_tasks_by_status_id(status_id=1, worker_tg_id=worker_tg_id))]
     all_edited_tasks = [dict(dictionary) for dictionary in
-                        list(await db.get_tasks_by_status_id(status_id=4))]
+                        list(await db.get_tasks_by_status_id(status_id=4, worker_tg_id=worker_tg_id))]
     all_tasks = all_new_tasks + all_edited_tasks
     logging.info(all_tasks)
     admin = str(message.from_user.id) in ADMINS
@@ -36,13 +38,15 @@ async def new_tasks(message: types.Message):
             task_text = create_worker_task_text(task)
             await message.answer(text=task_text, reply_markup=get_new_task_keyboard(task_id))
     else:
-        await message.answer('📭Новых заявок на данный момент нет!', reply_markup=await get_start_worker_keyboard(admin=admin))
+        await message.answer('📭Новых заявок на данный момент нет!',
+                             reply_markup=await get_start_worker_keyboard(admin=admin, worker_tg_id=worker_tg_id))
 
 
 @dp.message_handler(IsWorker(), Text(contains="🛠Заявки в работе"))
 async def tasks_in_work(message: types.Message):
+    worker_tg_id = message.from_user.id
     all_tasks_in_work = [dict(dictionary) for dictionary in
-                         list(await db.get_tasks_by_status_id(status_id=2))]
+                         list(await db.get_tasks_by_status_id(status_id=2, worker_tg_id=worker_tg_id))]
     admin = str(message.from_user.id) in ADMINS
     if all_tasks_in_work:
         for task in all_tasks_in_work:
@@ -50,13 +54,15 @@ async def tasks_in_work(message: types.Message):
             task_text = create_worker_task_text(task)
             await message.answer(text=task_text, reply_markup=get_worker_task_in_work_keyboard(task_id))
     else:
-        await message.answer('📭Заявок в работе на данный момент нет!', reply_markup=await get_start_worker_keyboard(admin=admin))
+        await message.answer('📭Заявок в работе на данный момент нет!',
+                             reply_markup=await get_start_worker_keyboard(admin=admin, worker_tg_id=worker_tg_id))
 
 
 @dp.message_handler(IsWorker(), Text(contains="🖋Заявки в исправлении"))
 async def tasks_in_editing(message: types.Message):
+    worker_tg_id = message.from_user.id
     all_tasks_in_work = [dict(dictionary) for dictionary in
-                         list(await db.get_tasks_by_status_id(status_id=3))]
+                         list(await db.get_tasks_by_status_id(status_id=3, worker_tg_id=worker_tg_id))]
     admin = str(message.from_user.id) in ADMINS
     if all_tasks_in_work:
         for task in all_tasks_in_work:
@@ -65,13 +71,14 @@ async def tasks_in_editing(message: types.Message):
             await message.answer(text=task_text, reply_markup=get_worker_task_in_editing_keyboard(task_id))
     else:
         await message.answer('📭Заявок в исправлении на данный момент нет!',
-                             reply_markup=await get_start_worker_keyboard(admin=admin))
+                             reply_markup=await get_start_worker_keyboard(admin=admin, worker_tg_id=worker_tg_id))
 
 
 @dp.message_handler(IsWorker(), Text(contains="🗃Архив заявок"))
 async def tasks_archive(message: types.Message):
+    worker_tg_id = message.from_user.id
     all_tasks_in_work = [dict(dictionary) for dictionary in
-                         list(await db.get_tasks_by_status_id(status_id=5))]
+                         list(await db.get_tasks_by_status_id(status_id=5, worker_tg_id=worker_tg_id))]
     admin = str(message.from_user.id) in ADMINS
     if all_tasks_in_work:
         for task in all_tasks_in_work:
@@ -80,7 +87,7 @@ async def tasks_archive(message: types.Message):
             await message.answer(text=task_text, reply_markup=get_worker_task_finished_keyboard(task_id))
     else:
         await message.answer('📭Завершенных заявок на данный момент нет!',
-                             reply_markup=await get_start_worker_keyboard(admin=admin))
+                             reply_markup=await get_start_worker_keyboard(admin=admin, worker_tg_id=worker_tg_id))
 
 
 @dp.callback_query_handler(IsWorker(), task_in_work_callback.filter(action='finish'))

@@ -21,7 +21,7 @@ async def show_tasks(message: types.Message):
         task_id = task.get('task_id')
         task_status_name = task.get('task_status_name')
 
-        if task_status_name == "Завершена":
+        if task_status_name == "Завершена" or task_status_name == "Изменённая заявка":
             reply_markup = None
         else:
             reply_markup = get_my_task_keyboard(task_id)
@@ -64,6 +64,8 @@ async def edit_task(call: types.CallbackQuery, state: FSMContext, callback_data:
         text += f"Ваш комментарий: <b>{state_data['comment']}</b>\n\n"
     if state_data.get('worker_comment'):
         text += f"Комментарий исполнителя: <b>{worker_comment}</b>\n\n"
+    if state_data.get('admin_comment'):
+        text += f"Комментарий администратора: <b>{state_data['admin_comment']}</b>\n\n"
 
     text += f"📲Воспользуйтесь кнопками, чтобы продолжить создание заявки!"
 

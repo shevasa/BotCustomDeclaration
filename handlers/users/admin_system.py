@@ -1,3 +1,5 @@
+import logging
+
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
@@ -14,9 +16,11 @@ from utils.misc.ignored_task import get_ignored_tasks
 @dp.message_handler(Text(equals="🧑‍💼Админ система"))
 async def show_admin_system(message: types.Message):
     ignored_tasks = [dict(task) for task in list(await db.get_ignored_tasks())]
-    num_of_tasks_work = await db.get_number_of_tasks_by_status_id(status_id=2, task_type_id=2)
-    num_of_task_in_editing = await db.get_number_of_tasks_by_status_id(status_id=3, task_type_id=2)
-    num_of_finished_tasks = await db.get_number_of_tasks_by_status_id(status_id=4, task_type_id=2)
+    logging.info(ignored_tasks)
+    worker_tg_id = int(await db.select_worker_by_task_type_id(2))
+    num_of_tasks_work = await db.get_number_of_tasks_by_status_id(status_id=2, worker_tg_id=worker_tg_id)
+    num_of_task_in_editing = await db.get_number_of_tasks_by_status_id(status_id=3, worker_tg_id=worker_tg_id)
+    num_of_finished_tasks = await db.get_number_of_tasks_by_status_id(status_id=4, worker_tg_id=worker_tg_id)
     num_of_ignored_tasks = len(ignored_tasks)
     text = "Информацию про работу исполнителя МД:\n\n" \
            f"🔸{num_of_ignored_tasks} непринятых заявки, которым больше 1 минуты\n\n" \
@@ -72,6 +76,6 @@ async def confirm_admin_comment(call: types.CallbackQuery, state: FSMContext):
 
     await db.add_admin_comment_by_task_id(int(task_id), admin_comment)
 
-    await call.message.answer(f'✅Комментарий алминистратора к заявке №{task_id} успешно добавлена',
+    await call.message.answer(f'✅Комментарий алминистратора к заявке <b>№{task_id}</b> успешно добавлен',
                               reply_markup=await get_start_worker_keyboard(admin=True))
 

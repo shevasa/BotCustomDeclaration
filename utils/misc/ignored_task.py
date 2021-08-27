@@ -5,8 +5,10 @@ from loader import db, bot
 async def get_ignored_tasks(chat_id: int = 329760591):
     all_md_ignored = [dict(task) for task in list(await db.get_ignored_tasks())]
     await bot.send_message(chat_id=chat_id,
-                           text=f"У исполнителя МД есть {len(all_md_ignored)} "
-                                f"непринятых заявки, которые были созданы больше чем 1 минута назад")
+                           text=f"==========================\n"
+                                f"❗️❗️❗️У исполнителя МД есть {len(all_md_ignored)} "
+                                f"непринятых заявки, которые были созданы больше чем 1 минута назад❗️❗️❗️\n"
+                                f"==========================")
     for task_dict in all_md_ignored:
         task_id = task_dict.get('task_id')
         task_status_name = task_dict.get('task_status_name')

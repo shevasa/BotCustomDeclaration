@@ -3,6 +3,9 @@ from loader import db
 
 async def edit_my_task(state_data: dict):
     task_id = state_data.get('my_task_id')
+    task_info = await db.get_task_by_task_id(task_id)
+    worker_tg_id = task_info.get('worker_tg_id')
+
     await db.delete_task_files_by_task_id(task_id)
     await db.change_task_status(task_id, new_task_status_id=4)
 
@@ -20,5 +23,5 @@ async def edit_my_task(state_data: dict):
                                              document_type_id=document_type_id,
                                              document_content_type=document_content_type)
 
-    return int(task_id)
+    return int(task_id), int(worker_tg_id)
 

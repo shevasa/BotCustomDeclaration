@@ -19,7 +19,7 @@ from utils.save_new_task_to_db import save_new_task_to_db
 
 
 @dp.message_handler(text="Оформить заявку✍🏼")
-async def choose_task_type(message: types.Message, state: FSMContext):
+async def choose_task_type(message: types.Message):
     await message.answer("Выберите тип декларации, который хотите оформить",
                          reply_markup=await get_choose_task_type_keyboard())
 
@@ -261,9 +261,15 @@ async def finish_task_creation(call: types.CallbackQuery, state: FSMContext):
     logging.info(f'{state_data}')
 
     if state_data.get('my_task_id'):
-        task_id = await edit_my_task(state_data)
+        task_id, worker_tg_id = await edit_my_task(state_data)
     else:
-        new_task_id = await save_new_task_to_db(state_data, user_tg_id=call.from_user.id)
+        task_type_id = dict(await db.get_task_type_id_and_emoji_by_task_type_name(state_data.get('task_type_name')))[
+            'task_type_id']
+        task_type_id = int(task_type_id)
+
+        worker_tg_id = int(await db.select_worker_by_task_type_id(task_type_id=task_type_id))
+
+        new_task_id = await save_new_task_to_db(state_data, user_tg_id=call.from_user.id, worker_tg_id=worker_tg_id)
 
     await call.message.edit_reply_markup()
     await call.message.answer("💾Ваша заявка успешно сохранена и отправлена на обработку",
@@ -273,12 +279,12 @@ async def finish_task_creation(call: types.CallbackQuery, state: FSMContext):
 
     if new_task_id:
         text = f"‼️ Новая заявка от: {call.from_user.get_mention()}"
-        await bot.send_message(chat_id=329760591, text=text,
+        await bot.send_message(chat_id=worker_tg_id, text=text,
                                reply_markup=get_new_task_keyboard(new_task_id))
 
     elif task_id:
         text = f"‼️ Изменённая заявка от: {call.from_user.get_mention()}"
-        await bot.send_message(chat_id=329760591, text=text,
+        await bot.send_message(chat_id=worker_tg_id, text=text,
                                reply_markup=get_new_task_keyboard(task_id))
 
         # 925075502

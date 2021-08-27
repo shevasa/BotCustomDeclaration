@@ -18,7 +18,7 @@ async def bot_start(message: types.Message):
     except UniqueViolationError:
         pass
 
-    await message.answer(f"👋🏻{user.full_name}, рады приветсвовать вас!\n\n"
+    await message.answer(f"👋🏻{message.from_user.full_name}, рады приветсвовать вас!\n\n"
                          "В этом боте вы можете создать заявку на оформление таких документов:\n"
                          "🔹Т1 ЕС\n"
                          "🔸Т1 Турция\n"

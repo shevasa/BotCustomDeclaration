@@ -3,6 +3,7 @@ import logging
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 
+from data.config import ADMINS
 from keyboards.default import start_user_keyboard, get_start_worker_keyboard
 from keyboards.inline import new_task_callback, get_worker_new_task_keyboard, worker_task_callback, \
     comment_inline_keyboard, comment_markup_callback, get_my_task_keyboard, task_in_work_callback, \
@@ -60,7 +61,7 @@ async def show_task(call: types.CallbackQuery, state: FSMContext, callback_data:
     if comment:
         await call.message.answer(f"Комментарий пользователя➡️ <b>{comment}</b>", disable_notification=True)
 
-    if worker_comment and callback_data['@']=='task_in_editing':
+    if worker_comment and callback_data['@'] == 'task_in_editing':
         await call.message.answer(f"Комментарий исполнителя➡️ <b>{worker_comment}</b>", disable_notification=True)
 
     await call.message.answer(f"=========================")
@@ -78,11 +79,14 @@ async def show_task(call: types.CallbackQuery, state: FSMContext, callback_data:
 
 @dp.callback_query_handler(worker_task_callback.filter(action='take_to_work'))
 async def take_task_to_work(call: types.CallbackQuery, callback_data: dict):
+    worker_tg_id = call.message.from_user.id
+    admin = str(call.message.from_user.id) in ADMINS
     task_id = int(callback_data.get('task_id'))
     user_tg_id = int(await db.change_task_status(task_id=task_id, new_task_status_id=2))
 
     await call.message.edit_reply_markup()
-    await call.message.answer("✅Заявка успешно принята в работу", reply_markup=await get_start_worker_keyboard())
+    await call.message.answer("✅Заявка успешно принята в работу",
+                              reply_markup=await get_start_worker_keyboard(admin, worker_tg_id))
 
     await bot.send_message(chat_id=user_tg_id, text="✅Ваша заявка успешно принята исполнителем и находиться в работе!",
                            reply_markup=start_user_keyboard)
@@ -109,6 +113,9 @@ async def send_task_to_editing(message: types.Message, state: FSMContext):
 
 @dp.callback_query_handler(comment_markup_callback.filter(action='add'), state="comment_confirm")
 async def send_task_to_editing(call: types.CallbackQuery, state: FSMContext):
+    worker_tg_id = call.message.from_user.id
+    admin = str(call.message.from_user.id) in ADMINS
+
     state_data = await state.get_data()
     logging.info(state_data)
 
@@ -124,6 +131,7 @@ async def send_task_to_editing(call: types.CallbackQuery, state: FSMContext):
                            text=task_text + f"\n\n‼️Комментарий исполнителя‼️\n<b>{worker_comment}</b>",
                            reply_markup=get_my_task_keyboard(task_id))
 
-    await call.message.answer("📬Заявка отправлена на исправление", reply_markup=await get_start_worker_keyboard())
+    await call.message.answer("📬Заявка отправлена на исправление",
+                              reply_markup=await get_start_worker_keyboard(admin, worker_tg_id))
 
     await state.reset_state()

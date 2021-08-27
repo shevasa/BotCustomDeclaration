@@ -13,7 +13,7 @@ async def on_startup(dp):
     await on_startup_notify(dp)
     await set_default_commands(dp)
 
-    scheduler.add_job(get_ignored_tasks, "interval", seconds=20)
+    scheduler.add_job(get_ignored_tasks, "interval", minutes=10)
     await db.create()
     await db.create_table_users()
 

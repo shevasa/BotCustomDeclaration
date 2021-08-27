@@ -1,12 +1,12 @@
 from loader import db
 
 
-async def save_new_task_to_db(state_data: dict, user_tg_id):
+async def save_new_task_to_db(state_data: dict, user_tg_id, worker_tg_id: int):
     task_type_id = int(
         dict(await db.get_task_type_id_and_emoji_by_task_type_name(state_data.get('task_type_name'))).get(
             'task_type_id'))
     new_task_dict = dict(await db.create_new_task(task_type_id=task_type_id, user_tg_id=user_tg_id,
-                                                  comment=state_data.get('comment')))
+                                                  comment=state_data.get('comment'), worker_tg_id=worker_tg_id))
     all_needed_documents = list(await db.all_needed_documents_by_task_name(state_data.get('task_type_name')))
     new_task_id = new_task_dict.get('task_id')
 
