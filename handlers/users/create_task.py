@@ -1,9 +1,10 @@
+import datetime
 import logging
 from typing import List, Union
 
 from aiogram import types
 from aiogram.dispatcher import FSMContext
-from aiogram.types import ContentType, MediaGroup
+from aiogram.types import ContentType, MediaGroup, ReplyKeyboardMarkup, KeyboardButton
 
 from filters import Check_text_document
 from keyboards.default import start_user_keyboard
@@ -11,10 +12,11 @@ from keyboards.inline import get_choose_task_type_keyboard, choose_task_type_cal
     task_creation_callback, ready_keyboard, edit_document_keyboard, edit_callback, task_creation_else_callback, \
     comment_markup_callback, get_new_task_keyboard, comment_inline_keyboard, \
     text_doc_markup_callback, get_text_doc_inline_keyboard
-from loader import dp, db, bot
+from loader import dp, db, bot, scheduler
 from states.task_creation_states import Task_creation
 from utils.edit_my_task_in_db import edit_my_task
 from utils.misc import create_state_dict
+from utils.misc.x_minutes_ignored import send_20_minutes_ignored_alarm
 from utils.save_new_task_to_db import save_new_task_to_db
 
 
@@ -282,10 +284,16 @@ async def finish_task_creation(call: types.CallbackQuery, state: FSMContext):
         await bot.send_message(chat_id=worker_tg_id, text=text,
                                reply_markup=get_new_task_keyboard(new_task_id))
 
+        time_to_play = datetime.datetime.now() + datetime.timedelta(minutes=1)
+        scheduler.add_job(send_20_minutes_ignored_alarm, "date", run_date=time_to_play, args=(new_task_id,))
+
     elif task_id:
         text = f"‼️ Изменённая заявка от: {call.from_user.get_mention()}"
         await bot.send_message(chat_id=worker_tg_id, text=text,
                                reply_markup=get_new_task_keyboard(task_id))
+
+        time_to_play = datetime.datetime.now() + datetime.timedelta(minutes=1)
+        scheduler.add_job(send_20_minutes_ignored_alarm, "date", run_date=time_to_play, args=(task_id,))
 
         # 925075502
 

@@ -1,0 +1,36 @@
+version: "3.1"
+
+services:
+  custom_db:
+    container_name: Custom_Database
+    image: postgres
+    environment:
+      POSTGRES_USER: $DB_USER
+      POSTGRES_PASSWORD: $DB_PASS
+      POSTGRES_DB: $DB_NAME
+    restart: always
+    ports:
+      - 5434:5434
+    networks:
+      - custom_botnet
+    volumes:
+      - ./postgres:/var/lib/postgresql
+
+  custom_tg_bot:
+    container_name: custom_bot
+    build:
+      context: .
+    command: python app.py
+    restart: always
+    networks:
+      - custom_botnet
+    env_file:
+      - ".env"
+    depends_on:
+      - custom_db
+    volumes:
+      - .:/src
+
+networks:
+  custom_botnet:
+    driver: bridge

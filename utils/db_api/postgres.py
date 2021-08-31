@@ -55,6 +55,259 @@ class Database:
             """
         return await self.execute(sql, execute=True)
 
+    async def create_table_workers(self):
+        sql = """create table if not exists workers
+            (
+                worker_id        serial not null
+                    constraint workers_pk
+                        primary key,
+                worker_full_name varchar,
+                worker_contact   varchar,
+                worker_url       integer
+            );
+
+            alter table users
+                owner to ilya;
+            """
+        return await self.execute(sql, execute=True)
+
+    async def create_table_document_types(self):
+        sql = """create table if not exists document_types
+                (
+                    document_type_id   serial not null
+                        constraint document_types_pk
+                            primary key,
+                    document_type_name varchar
+                );
+                
+                alter table document_types
+                    owner to ilya;
+            """
+        return await self.execute(sql, execute=True)
+
+    async def create_table_task_status(self):
+        sql = """create table if not exists task_status
+                (
+                    task_status_id   serial not null
+                        constraint task_status_pk
+                            primary key,
+                    task_status_name varchar
+                );
+                
+                alter table task_status
+                    owner to ilya;
+            """
+        return await self.execute(sql, execute=True)
+
+    async def create_table_task_types(self):
+        sql = """create table if not exists task_types
+                    (
+                        task_type_id    serial not null
+                            constraint task_types_pk
+                                primary key,
+                        task_type_name  varchar,
+                        task_type_emoji varchar
+                    );
+                    
+                    alter table task_types
+                        owner to ilya;
+            """
+        return await self.execute(sql, execute=True)
+
+    async def create_table_worker_task_types(self):
+        sql = """create table if not exists worker_task_types
+                    (
+                        worker_id    integer
+                            constraint "worker's_task_types_workers_worker_id_fk"
+                                references workers
+                                on update cascade on delete cascade,
+                        task_type_id integer
+                            constraint "worker's_task_types_task_types_task_type_id_fk"
+                                references task_types
+                                on update cascade on delete cascade
+                    );
+                    
+                    alter table worker_task_types
+                        owner to ilya;
+            """
+        return await self.execute(sql, execute=True)
+
+    async def create_table_needed_documents(self):
+        sql = """create table if not exists needed_documents
+                    (
+                        task_type_id     integer
+                            constraint needed_documents_task_types_task_type_id_fk
+                                references task_types
+                                on update cascade on delete cascade,
+                        document_type_id integer
+                            constraint needed_documents_document_types_document_type_id_fk
+                                references document_types
+                                on update cascade on delete cascade
+                    );
+                    
+                    alter table needed_documents
+                        owner to ilya;
+            """
+        return await self.execute(sql, execute=True)
+
+    async def create_table_tasks(self):
+        sql = """create table if not exists tasks
+                (
+                    task_id             serial not null
+                        constraint tasks_pk
+                            primary key,
+                    task_type_id        integer
+                        constraint tasks_task_types_task_type_id_fk
+                            references task_types
+                            on update cascade on delete cascade,
+                    user_tg_id          bigint
+                        constraint tasks_users_telegram_id_fk
+                            references users
+                            on update cascade on delete cascade,
+                    worker_tg_id        bigint
+                        constraint tasks_workers_worker_id_fk
+                            references workers
+                            on update cascade on delete cascade,
+                    status_id           integer
+                        constraint tasks_task_status_task_status_id_fk
+                            references task_status
+                            on update cascade on delete cascade,
+                    comment             varchar,
+                    worker_comment      varchar,
+                    created_at          timestamp default (CURRENT_TIMESTAMP + '03:00:00'::interval),
+                    worker_comment_time timestamp,
+                    admin_comment       varchar
+                );
+                
+                alter table tasks
+                    owner to ilya;
+            """
+        return await self.execute(sql, execute=True)
+
+    async def create_table_documents(self):
+        sql1 = """create sequence if not exists documents_document_file_id_seq;
+                alter sequence documents_document_file_id_seq owner to ilya;
+                """
+
+        sql2 = """
+        create table if not exists documents
+                (
+                    -- Only integer types can be auto increment
+                    document_file_id      varchar default nextval('documents_document_file_id_seq'::regclass) not null 
+                        constraint documents_pk
+                            primary key,
+                    task_id               integer
+                        constraint documents_tasks_task_id_fk
+                            references tasks
+                            on update cascade on delete cascade,
+                    document_type_id      integer
+                        constraint documents_document_types_document_type_id_fk
+                            references document_types
+                            on update cascade on delete cascade,
+                    document_content_type varchar,
+                    text                  varchar
+                );
+                
+                alter table documents
+                    owner to ilya;
+            """
+
+        await self.execute(sql1, execute=True)
+
+        return await self.execute(sql2, execute=True)
+
+    async def create_and_run_procedure_insert(self):
+        sql1 = """create or replace procedure insert_if_empty()
+                    language plpgsql
+                    as $$
+                    begin
+                        if (not exists(select 1 from document_types)) then
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (2, 'CMR');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (3, 'Паспорт водителя');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (4, 'Invoice');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (5, 'Экспортная декларация(при наличии)');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (8, 'Упаковочный лист(при наличии)');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (11, 'Номер телефона водителя');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (1, 'Техпаспорт(тягач-прицеп)');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (12, 'Информация о пункте въезда в страну ЕС, в Турцию и место таможенной очистки(растаможка)');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (13, 'Экспортная декларация');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (14, 'Загран. паспорт водителя');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (10, 'Информация о пункте въезда на территорию Украины и пункте выезда из Украины');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (9, 'Информация о пункте въезда на территорию Республики Беларусь и пункте таможенной очистки(растаможка)');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (15, 'Таможенное свидетельство(жёлтое)');
+                            INSERT INTO document_types (document_type_id, document_type_name) VALUES (6, 'Информация о пункте въезда в страну ЕС и место таможенной очистки (растаможка)');
+                        end if;
+                    
+                        if (not exists(select 1 from task_status)) then
+                            INSERT INTO task_status (task_status_id, task_status_name) VALUES (2, 'В работе');
+                            INSERT INTO task_status (task_status_id, task_status_name) VALUES (3, 'В редактировании');
+                            INSERT INTO task_status (task_status_id, task_status_name) VALUES (1, 'Новая заявка');
+                            INSERT INTO task_status (task_status_id, task_status_name) VALUES (5, 'Завершена');
+                            INSERT INTO task_status (task_status_id, task_status_name) VALUES (4, 'Изменённая заявка');
+                        end if;
+                    
+                        if (not exists(select 1 from task_types)) then
+                            INSERT INTO task_types (task_type_id, task_type_name, task_type_emoji) VALUES (1, 'T1 ЕС', '🇪🇺');
+                            INSERT INTO task_types (task_type_id, task_type_name, task_type_emoji) VALUES (2, 'МД', '🇲🇩');
+                            INSERT INTO task_types (task_type_id, task_type_name, task_type_emoji) VALUES (4, 'ЭПИ Беларусь', '🇧🇾');
+                            INSERT INTO task_types (task_type_id, task_type_name, task_type_emoji) VALUES (5, 'Укр. транзит', '🇺🇦');
+                            INSERT INTO task_types (task_type_id, task_type_name, task_type_emoji) VALUES (3, 'ЗДП', '🇺🇦');
+                            INSERT INTO task_types (task_type_id, task_type_name, task_type_emoji) VALUES (6, 'T1 Турция', '🇹🇷');
+                        end if;
+                        
+                        if (not exists(select 1 from workers)) then
+                            INSERT INTO public.workers (worker_id, worker_full_name, worker_contact, worker_url) VALUES (329760591, 'Ilya Shevchenko', null, null);
+                            INSERT INTO public.workers (worker_id, worker_full_name, worker_contact, worker_url) VALUES (1863027098, 'Platforma', null, null);
+                        end if;
+                    
+                        if (not exists(select 1 from worker_task_types)) then
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 1);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 3);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 4);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 5);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 6);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (1863027098, 2);
+                        end if;
+                    
+                        if (not exists(select 1 from needed_documents)) then
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (1, 2);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (1, 4);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (1, 1);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (1, 5);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (1, 6);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (6, 2);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (6, 4);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (6, 1);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (6, 5);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (6, 12);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (2, 2);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (2, 4);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (2, 1);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (2, 3);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (2, 5);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (3, 2);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (3, 4);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (3, 13);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (4, 2);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (4, 4);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (4, 1);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (4, 14);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (4, 15);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (4, 8);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (4, 9);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (5, 2);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (5, 4);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (5, 1);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (5, 3);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (5, 10);
+                            INSERT INTO needed_documents (task_type_id, document_type_id) VALUES (5, 11);
+                        end if;
+                        
+                    end;$$"""
+        sql2 = "call insert_if_empty()"
+        await self.execute(sql1, execute=True)
+        await self.execute(sql2, execute=True)
+
     async def add_user(self, telegram_id, full_name, username, tg_url, telephone_number=None):
         sql = """insert into users (telegram_id, full_name, username, tg_url, telephone_number)
         values ($1, $2, $3, $4, $5) returning *"""
@@ -106,7 +359,7 @@ class Database:
         return await self.execute(sql, task_id, document_type_id, document_content_type, document_text, execute=True)
 
     async def get_task_by_task_id(self, task_id):
-        sql = """select t.user_tg_id, tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id, 
+        sql = """select t.user_tg_id, t.status_id, tp.task_type_name, t.comment, a.num_of_files, ts.task_status_name, t.task_id, 
         t.worker_comment, t.admin_comment, t.worker_tg_id from tasks t
     left join task_types tp on tp.task_type_id=t.task_type_id
     left join (select task_id, count(document_file_id) as num_of_files from documents group by task_id) a on a.task_id=t.task_id
@@ -115,10 +368,12 @@ class Database:
         return await self.execute(sql, task_id, fetchrow=True)
 
     async def get_tasks_by_status_id(self, status_id, worker_tg_id):
-        sql = """select t.task_id, u.full_name, tp.task_type_name, ts.task_status_name, t.comment, t.worker_comment from tasks t
+        sql = """select t.task_id, u.full_name, tp.task_type_name, ts.task_status_name, t.comment, t.worker_comment,
+         w.worker_full_name from tasks t
             left join task_types tp on tp.task_type_id=t.task_type_id
             left join task_status ts on ts.task_status_id=t.status_id
-            left join users u on u.telegram_id=t.user_tg_id 
+            left join users u on u.telegram_id=t.user_tg_id
+            left join workers w on w.worker_id=t.worker_tg_id  
             where t.status_id=$1 and t.worker_tg_id=$2"""
         return await self.execute(sql, status_id, worker_tg_id, fetch=True)
 
@@ -157,25 +412,29 @@ class Database:
             sql = "update tasks set status_id=$1 where task_id=$2 returning user_tg_id"
             return await self.execute(sql, new_task_status_id, task_id, fetchval=True)
 
-    async def get_number_of_tasks_by_status_id(self, status_id, worker_tg_id: Union[int, None] = None):
-        if worker_tg_id is None:
-            sql = "select count(task_id) from tasks where status_id=$1"
-            return await self.execute(sql, status_id, fetchval=True)
+    async def get_number_of_tasks_by_status_id(self, status_id, worker_tg_id: int,
+                                               month: bool = False, day: bool = False):
+        if day:
+            sql = "select count(task_id) from tasks where status_id=$1 and worker_tg_id=$2 " \
+                  "and date(created_at) = current_date;"
+        elif month:
+            sql = "select count(task_id) from tasks where status_id=$1 and worker_tg_id=$2 " \
+                  "and extract(month from created_at) = date_part('month', (select current_timestamp));"
         else:
             sql = "select count(task_id) from tasks where status_id=$1 and worker_tg_id=$2"
-            return await self.execute(sql, status_id, worker_tg_id, fetchval=True)
+        return await self.execute(sql, status_id, worker_tg_id, fetchval=True)
 
     async def get_ignored_tasks(self):
         sql = "select t.task_id, u.full_name, t.created_at, ts.task_status_name, tt.task_type_name from tasks t " \
               "left join task_types tt on tt.task_type_id=t.task_type_id " \
               "left join users u on u.telegram_id=t.user_tg_id " \
               "left join task_status ts on ts.task_status_id=t.status_id " \
-              "where age(current_timestamp, t.created_at)>'1 minute' " \
+              "where age(current_timestamp+'3 hours', t.created_at)>'20 minute' " \
               "and tt.task_type_name='МД' " \
               "and t.status_id=1 or " \
-              "age(current_timestamp, t.created_at)>'1 minute' " \
+              "age(current_timestamp+'3 hours', t.created_at)>'20 minute' " \
               "and tt.task_type_name='МД' " \
-              "and t.status_id=1"
+              "and t.status_id=4"
         return await self.execute(sql, fetch=True)
 
     async def add_admin_comment_by_task_id(self, task_id, admin_comment):

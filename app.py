@@ -13,9 +13,20 @@ async def on_startup(dp):
     await on_startup_notify(dp)
     await set_default_commands(dp)
 
-    scheduler.add_job(get_ignored_tasks, "interval", minutes=10)
+    scheduler.add_job(get_ignored_tasks, "cron", day_of_week='mon-fri', hour='12, 16, 20')
+
     await db.create()
     await db.create_table_users()
+    await db.create_table_workers()
+    await db.create_table_document_types()
+    await db.create_table_task_status()
+    await db.create_table_task_types()
+    await db.create_table_worker_task_types()
+    await db.create_table_needed_documents()
+    await db.create_table_tasks()
+    await db.create_table_documents()
+
+    await db.create_and_run_procedure_insert()
 
 
 if __name__ == '__main__':

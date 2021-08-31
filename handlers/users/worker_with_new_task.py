@@ -1,3 +1,4 @@
+import datetime
 import logging
 
 from aiogram import types
@@ -8,8 +9,9 @@ from keyboards.default import start_user_keyboard, get_start_worker_keyboard
 from keyboards.inline import new_task_callback, get_worker_new_task_keyboard, worker_task_callback, \
     comment_inline_keyboard, comment_markup_callback, get_my_task_keyboard, task_in_work_callback, \
     get_worker_task_in_work_keyboard, task_in_editing_callback, get_worker_task_in_editing_keyboard
-from loader import dp, db, bot
+from loader import dp, db, bot, scheduler
 from utils.misc import create_state_dict
+from utils.misc.x_minutes_ignored import send_15_minutes_in_work_alarm
 
 
 @dp.callback_query_handler(task_in_editing_callback.filter(action='show_info'))
@@ -79,17 +81,21 @@ async def show_task(call: types.CallbackQuery, state: FSMContext, callback_data:
 
 @dp.callback_query_handler(worker_task_callback.filter(action='take_to_work'))
 async def take_task_to_work(call: types.CallbackQuery, callback_data: dict):
-    worker_tg_id = call.message.from_user.id
+    worker_tg_id = call.from_user.id
     admin = str(call.message.from_user.id) in ADMINS
     task_id = int(callback_data.get('task_id'))
     user_tg_id = int(await db.change_task_status(task_id=task_id, new_task_status_id=2))
 
     await call.message.edit_reply_markup()
-    await call.message.answer("✅Заявка успешно принята в работу",
+    await call.message.answer(f"✅Заявка №{task_id} успешно принята в работу",
                               reply_markup=await get_start_worker_keyboard(admin, worker_tg_id))
 
-    await bot.send_message(chat_id=user_tg_id, text="✅Ваша заявка успешно принята исполнителем и находиться в работе!",
+    await bot.send_message(chat_id=user_tg_id,
+                           text=f"✅Ваша заявка №{task_id} успешно принята исполнителем и находиться в работе!",
                            reply_markup=start_user_keyboard)
+
+    time_to_play = datetime.datetime.now() + datetime.timedelta(minutes=2)
+    scheduler.add_job(send_15_minutes_in_work_alarm, "date", run_date=time_to_play, args=(task_id, ))
 
 
 @dp.callback_query_handler(comment_markup_callback.filter(action='edit'), state="comment_confirm")
