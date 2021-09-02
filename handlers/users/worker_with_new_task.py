@@ -81,20 +81,21 @@ async def show_task(call: types.CallbackQuery, state: FSMContext, callback_data:
 
 @dp.callback_query_handler(worker_task_callback.filter(action='take_to_work'))
 async def take_task_to_work(call: types.CallbackQuery, callback_data: dict):
-    worker_tg_id = call.from_user.id
-    admin = str(call.message.from_user.id) in ADMINS
+    worker_tg_id = int(call.from_user.id)
+    admin = str(call.from_user.id) in ADMINS
+
     task_id = int(callback_data.get('task_id'))
     user_tg_id = int(await db.change_task_status(task_id=task_id, new_task_status_id=2))
 
     await call.message.edit_reply_markup()
     await call.message.answer(f"✅Заявка №{task_id} успешно принята в работу",
-                              reply_markup=await get_start_worker_keyboard(admin, worker_tg_id))
+                              reply_markup=await get_start_worker_keyboard(worker_tg_id=worker_tg_id, admin=admin))
 
     await bot.send_message(chat_id=user_tg_id,
                            text=f"✅Ваша заявка №{task_id} успешно принята исполнителем и находиться в работе!",
                            reply_markup=start_user_keyboard)
 
-    time_to_play = datetime.datetime.now() + datetime.timedelta(minutes=2)
+    time_to_play = datetime.datetime.now() + datetime.timedelta(minutes=15)
     scheduler.add_job(send_15_minutes_in_work_alarm, "date", run_date=time_to_play, args=(task_id, ))
 
 
@@ -119,8 +120,8 @@ async def send_task_to_editing(message: types.Message, state: FSMContext):
 
 @dp.callback_query_handler(comment_markup_callback.filter(action='add'), state="comment_confirm")
 async def send_task_to_editing(call: types.CallbackQuery, state: FSMContext):
-    worker_tg_id = call.message.from_user.id
-    admin = str(call.message.from_user.id) in ADMINS
+    worker_tg_id = call.from_user.id
+    admin = str(call.from_user.id) in ADMINS
 
     state_data = await state.get_data()
     logging.info(state_data)
@@ -138,6 +139,6 @@ async def send_task_to_editing(call: types.CallbackQuery, state: FSMContext):
                            reply_markup=get_my_task_keyboard(task_id))
 
     await call.message.answer("📬Заявка отправлена на исправление",
-                              reply_markup=await get_start_worker_keyboard(admin, worker_tg_id))
+                              reply_markup=await get_start_worker_keyboard(worker_tg_id=worker_tg_id, admin=admin))
 
     await state.reset_state()

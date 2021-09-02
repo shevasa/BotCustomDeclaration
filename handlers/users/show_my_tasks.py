@@ -21,7 +21,7 @@ async def show_tasks(message: types.Message):
         task_id = task.get('task_id')
         task_status_name = task.get('task_status_name')
 
-        if task_status_name == "Завершена" or task_status_name == "Изменённая заявка":
+        if task_status_name == "Завершена" or task_status_name == "Изменённая заявка" or task_status_name == "В работе":
             reply_markup = None
         else:
             reply_markup = get_my_task_keyboard(task_id)

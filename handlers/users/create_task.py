@@ -292,7 +292,7 @@ async def finish_task_creation(call: types.CallbackQuery, state: FSMContext):
         await bot.send_message(chat_id=worker_tg_id, text=text,
                                reply_markup=get_new_task_keyboard(task_id))
 
-        time_to_play = datetime.datetime.now() + datetime.timedelta(minutes=1)
+        time_to_play = datetime.datetime.now() + datetime.timedelta(minutes=20)
         scheduler.add_job(send_20_minutes_ignored_alarm, "date", run_date=time_to_play, args=(task_id,))
 
         # 925075502

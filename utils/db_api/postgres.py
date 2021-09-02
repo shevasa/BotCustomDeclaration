@@ -256,17 +256,17 @@ class Database:
                         end if;
                         
                         if (not exists(select 1 from workers)) then
-                            INSERT INTO public.workers (worker_id, worker_full_name, worker_contact, worker_url) VALUES (329760591, 'Ilya Shevchenko', null, null);
-                            INSERT INTO public.workers (worker_id, worker_full_name, worker_contact, worker_url) VALUES (1863027098, 'Platforma', null, null);
+                            INSERT INTO public.workers (worker_id, worker_full_name, worker_contact, worker_url) VALUES (617857847, 'Lavrentii_ber', null, null);
+                            INSERT INTO public.workers (worker_id, worker_full_name, worker_contact, worker_url) VALUES (925075502, 'Aleksandr', null, null);
                         end if;
                     
                         if (not exists(select 1 from worker_task_types)) then
-                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 1);
-                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 3);
-                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 4);
-                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 5);
-                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (329760591, 6);
-                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (1863027098, 2);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (925075502, 1);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (925075502, 3);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (925075502, 4);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (925075502, 5);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (925075502, 6);
+                            INSERT INTO worker_task_types (worker_id, task_type_id) VALUES (617857847, 2);
                         end if;
                     
                         if (not exists(select 1 from needed_documents)) then
@@ -395,7 +395,8 @@ class Database:
         return await self.execute(sql, task_id, execute=True)
 
     async def get_document_type_id_that_can_be_text(self):
-        sql = """select document_type_id from document_types where document_type_name like 'Информация%'"""
+        sql = """select document_type_id from document_types where document_type_name like 'Информация%' or 
+        document_type_name like 'Номер телефона%'"""
         return await self.execute(sql, fetch=True)
 
     async def get_document_type_id_by_doc_name(self, document_name: str):
